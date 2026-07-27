@@ -221,7 +221,14 @@ async function boot() {
     }
     const cell = heatmap.pickCell(ndc, ctx.camera)
     if (!cell) return
-    sweepControls.showDetail(buildCellDetail(lastSweep.result, cell.c, cell.r, config.robot, layout, fieldOccluders))
+    // Use the robot config *snapshotted at sweep time*, not the live one: the
+    // per-heading score table came from that snapshot's sweep, so the worst-
+    // heading cameras/tags recompute must use the same robot or the two
+    // halves of the detail box would describe different robots after an
+    // edit (see markSweepStaleIfNeeded — this is exactly the drift that
+    // makes a completed sweep "stale"). layout/fieldOccluders are safe to
+    // read live: a field change always clears lastSweep via clearSweep().
+    sweepControls.showDetail(buildCellDetail(lastSweep.result, cell.c, cell.r, lastSweep.config.robot, layout, fieldOccluders))
   })
 
   const panel = createConfigPanel({
