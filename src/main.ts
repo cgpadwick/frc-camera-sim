@@ -13,6 +13,11 @@ import { createHud } from './ui/hud'
 import { createConfigPanel } from './ui/configPanel'
 import { loadConfig, saveConfig, occluderUrlForYear } from './ui/configStore'
 import { showToast } from './ui/toast'
+import { createHeatmapView } from './viz/heatmapView'
+import { createSweepControls, buildCellDetail } from './ui/sweepControls'
+import { sweepInWorker } from './workers/sweepClient'
+import { DEFAULT_SWEEP } from './core/sweep'
+import type { SweepResult } from './core/sweep'
 import type { OccluderBox, SimConfig, TagLayout } from './core/types'
 
 /**
@@ -83,12 +88,38 @@ async function boot() {
   const frustumView = createFrustumView(ctx.scene)
   let tagHighlights = createTagHighlights(fieldGroup)
   const hud = createHud(app)
+  const heatmap = createHeatmapView(ctx.scene)
+
+  // Coverage sweep state. `lastSweep` is the source of truth for both the
+  // shown heatmap and cell inspection; it's cleared whenever it would no
+  // longer be valid (field change) and flagged stale (not cleared — cheap
+  // version per the task brief) when the robot config changes underneath it.
+  let lastSweep: { result: SweepResult; config: SimConfig } | null = null
+  let sweepMode: 'min' | 'avg' = 'min'
+  let sweepRunning = false
+  // Bumped by clearSweep() (Clear button or a field change); a sweep whose
+  // generation no longer matches when its worker promise resolves was
+  // superseded mid-flight and its result is discarded rather than applied.
+  let sweepGeneration = 0
 
   function rebuildRobot(): void {
     ctx.scene.remove(robotGroup)
     disposeObject3D(robotGroup)
     robotGroup = buildRobot(config.robot)
     ctx.scene.add(robotGroup)
+  }
+
+  function clearSweep(): void {
+    sweepGeneration++
+    heatmap.hide()
+    lastSweep = null
+    sweepControls.clearDetail()
+    sweepControls.setStale(false)
+  }
+
+  function markSweepStaleIfNeeded(): void {
+    if (!lastSweep) return
+    sweepControls.setStale(JSON.stringify(config) !== JSON.stringify(lastSweep.config))
   }
 
   async function rebuildField(year: string): Promise<void> {
@@ -112,6 +143,10 @@ async function boot() {
     drive.setFieldBounds(layout.field.length, layout.field.width)
     config.fieldYear = year
     saveConfig(config)
+    // A field change means a different grid (size/dims/occluders) — any
+    // existing sweep result no longer describes this field at all, so it's
+    // disposed outright rather than merely marked stale.
+    clearSweep()
   }
 
   ctx.onFrame((dt) => {
@@ -123,6 +158,70 @@ async function boot() {
     frustumView.update(drive.pose, config.robot, tagSize)
     tagHighlights.update(ev, config.robot)
     hud.update(ev, config.robot)
+  })
+
+  const sweepControls = createSweepControls({
+    onRun() {
+      if (sweepRunning) return
+      sweepRunning = true
+      const myGeneration = ++sweepGeneration
+      sweepControls.setRunning(true)
+      sweepControls.setProgress(0)
+      sweepControls.clearDetail()
+      sweepInWorker(layout, config.robot, fieldOccluders, DEFAULT_SWEEP, (frac) => {
+        if (sweepGeneration === myGeneration) sweepControls.setProgress(frac)
+      })
+        .then((result) => {
+          // A Clear click or a field change while this sweep was in flight
+          // bumped the generation counter; that result no longer describes
+          // the current field/state, so it's silently dropped.
+          if (sweepGeneration !== myGeneration) return
+          heatmap.show(result, sweepMode)
+          lastSweep = { result, config: structuredClone(config) }
+          ;(window as any).__sim.lastSweep = lastSweep
+          sweepControls.setStale(false)
+        })
+        .catch((e: unknown) => {
+          showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`)
+        })
+        .finally(() => {
+          sweepRunning = false
+          sweepControls.setRunning(false)
+        })
+    },
+    onModeChange(mode) {
+      sweepMode = mode
+      // Re-color only from the stored result — no re-sweep.
+      if (lastSweep) heatmap.show(lastSweep.result, sweepMode)
+    },
+    onClear() {
+      clearSweep()
+    },
+  })
+  app.appendChild(sweepControls.el)
+
+  // Cell inspection: a plain click (not an OrbitControls drag) on the canvas
+  // while a heatmap is shown picks the cell under the cursor and renders its
+  // detail. Distinguished from a drag by pointerdown->pointerup travel
+  // distance, since OrbitControls also listens on the same canvas.
+  const CLICK_DRAG_THRESHOLD_PX = 4
+  let pointerDownX = 0
+  let pointerDownY = 0
+  ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
+    pointerDownX = e.clientX
+    pointerDownY = e.clientY
+  })
+  ctx.renderer.domElement.addEventListener('pointerup', (e) => {
+    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_DRAG_THRESHOLD_PX) return
+    if (!lastSweep) return
+    const rect = ctx.renderer.domElement.getBoundingClientRect()
+    const ndc = {
+      x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      y: -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+    }
+    const cell = heatmap.pickCell(ndc, ctx.camera)
+    if (!cell) return
+    sweepControls.showDetail(buildCellDetail(lastSweep.result, cell.c, cell.r, config.robot, layout, fieldOccluders))
   })
 
   const panel = createConfigPanel({
@@ -137,6 +236,7 @@ async function boot() {
       config = { ...newConfig, fieldYear: config.fieldYear }
       saveConfig(config)
       rebuildRobot()
+      markSweepStaleIfNeeded()
     },
     onFieldChange(year) {
       // config.fieldYear is only mutated + persisted inside rebuildField,
@@ -146,6 +246,20 @@ async function boot() {
   })
   app.appendChild(panel)
 
-  ;(window as any).__sim = { ctx, layout, fieldOccluders, config, robotGroup, drive, frustumView, tagHighlights, hud, panel } // grows in later tasks
+  ;(window as any).__sim = {
+    ctx,
+    layout,
+    fieldOccluders,
+    config,
+    robotGroup,
+    drive,
+    frustumView,
+    tagHighlights,
+    hud,
+    panel,
+    heatmap,
+    sweepControls,
+    lastSweep,
+  } // grows in later tasks
 }
 boot().catch((e) => { document.body.innerHTML = `<pre>boot failed: ${e.message}</pre>` })

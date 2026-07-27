@@ -1,0 +1,226 @@
+import type { RobotConfig, TagLayout, OccluderBox } from '../core/types'
+import type { SweepResult } from '../core/sweep'
+import { cellIndex } from '../core/sweep'
+import { scoreBand } from '../core/scoring'
+import { evaluatePose } from '../core/evaluate'
+import { BAND_COLORS } from './hud'
+
+export interface CellDetailHeadingRow {
+  headingDeg: number
+  score: number
+  band: ReturnType<typeof scoreBand>
+}
+
+export interface CellDetailCamera {
+  cameraName: string
+  tagIds: number[]
+}
+
+export interface CellDetail {
+  c: number
+  r: number
+  xM: number
+  yM: number
+  rows: CellDetailHeadingRow[]
+  worstHeadingDeg: number
+  worstHeadingCameras: CellDetailCamera[]
+}
+
+/**
+ * Pure: builds the full inspection payload for one cell of a completed sweep —
+ * field coordinates, one row per heading (degrees/score/band, read straight
+ * from `result.perHeading`), and — via a single cheap `evaluatePose` recompute
+ * at the worst (min-score) heading — which cameras saw which tags there.
+ * DOM rendering (sweepControls' detail box) is a thin consumer of this data.
+ */
+export function buildCellDetail(
+  result: SweepResult,
+  c: number,
+  r: number,
+  robot: RobotConfig,
+  layout: TagLayout,
+  fieldOccluders: OccluderBox[],
+): CellDetail {
+  const i = cellIndex(c, r, result.cols)
+  const rows: CellDetailHeadingRow[] = []
+  let worstHeading = 0
+  let worstScore = Infinity
+  for (let h = 0; h < result.headingCount; h++) {
+    const score = result.perHeading[i * result.headingCount + h]
+    rows.push({ headingDeg: (360 * h) / result.headingCount, score, band: scoreBand(score) })
+    if (score < worstScore) {
+      worstScore = score
+      worstHeading = h
+    }
+  }
+  const worstHeadingDeg = (360 * worstHeading) / result.headingCount
+  const worstPose = {
+    x: (c + 0.5) * result.cellSizeM,
+    y: (r + 0.5) * result.cellSizeM,
+    headingRad: (2 * Math.PI * worstHeading) / result.headingCount,
+  }
+  const ev = evaluatePose(worstPose, robot, layout, fieldOccluders)
+  const worstHeadingCameras: CellDetailCamera[] = robot.cameras.map((cam, idx) => ({
+    cameraName: cam.name,
+    tagIds: (ev.perCamera[idx]?.detections ?? []).map((d) => d.tagId),
+  }))
+  return {
+    c,
+    r,
+    xM: (c + 0.5) * result.cellSizeM,
+    yM: (r + 0.5) * result.cellSizeM,
+    rows,
+    worstHeadingDeg,
+    worstHeadingCameras,
+  }
+}
+
+export interface SweepControlsOptions {
+  onRun(): void
+  onModeChange(mode: 'min' | 'avg'): void
+  onClear(): void
+}
+
+export interface SweepControlsHandle {
+  /** The bottom-bar container element; caller appends it into the page. */
+  el: HTMLElement
+  /** Toggles the Run button's disabled state and shows/hides the progress bar. */
+  setRunning(running: boolean): void
+  /** Updates the progress bar (0..1). */
+  setProgress(frac: number): void
+  /** Renders the cell-detail box from a pure CellDetail payload. */
+  showDetail(detail: CellDetail): void
+  /** Clears the cell-detail box back to its empty placeholder text. */
+  clearDetail(): void
+  /** Shows/hides a "results may be stale" note (config or field changed since the last sweep). */
+  setStale(stale: boolean): void
+}
+
+function bandLabel(band: ReturnType<typeof scoreBand>): string {
+  return { dead: 'dead', poor: 'poor', ok: 'ok', strong: 'strong' }[band]
+}
+
+/**
+ * Bottom-bar DOM: Run button, worst-case/average mode radios, a progress bar,
+ * a Clear button, and a cell-detail box. Plain DOM, no framework — matches
+ * configPanel.ts/hud.ts's style. All sweep execution/state lives in main.ts;
+ * this module only renders what it's told and forwards user intent via `opts`.
+ */
+export function createSweepControls(opts: SweepControlsOptions): SweepControlsHandle {
+  const el = document.createElement('div')
+  el.className = 'sweep-controls'
+
+  const bar = document.createElement('div')
+  bar.className = 'sweep-controls-bar'
+  el.appendChild(bar)
+
+  const runBtn = document.createElement('button')
+  runBtn.textContent = 'Run coverage sweep'
+  runBtn.addEventListener('click', () => opts.onRun())
+  bar.appendChild(runBtn)
+
+  function radio(value: 'min' | 'avg', labelText: string, checked: boolean): HTMLLabelElement {
+    const label = document.createElement('label')
+    label.className = 'sweep-mode-radio'
+    const input = document.createElement('input')
+    input.type = 'radio'
+    input.name = 'sweep-mode'
+    input.value = value
+    input.checked = checked
+    input.addEventListener('change', () => {
+      if (input.checked) opts.onModeChange(value)
+    })
+    label.append(input, document.createTextNode(labelText))
+    return label
+  }
+  bar.appendChild(radio('min', 'Worst-case heading', true))
+  bar.appendChild(radio('avg', 'Average over headings', false))
+
+  const progress = document.createElement('progress')
+  progress.max = 1
+  progress.value = 0
+  progress.style.display = 'none'
+  bar.appendChild(progress)
+
+  const clearBtn = document.createElement('button')
+  clearBtn.textContent = 'Clear'
+  clearBtn.addEventListener('click', () => opts.onClear())
+  bar.appendChild(clearBtn)
+
+  const staleNote = document.createElement('span')
+  staleNote.className = 'sweep-stale-note'
+  staleNote.textContent = 'Config changed since last sweep — results may be stale.'
+  staleNote.style.display = 'none'
+  bar.appendChild(staleNote)
+
+  const detailBox = document.createElement('div')
+  detailBox.className = 'cell-detail'
+  el.appendChild(detailBox)
+
+  const EMPTY_DETAIL_TEXT = 'Run a sweep, then click a cell on the field to inspect it.'
+  detailBox.textContent = EMPTY_DETAIL_TEXT
+
+  return {
+    el,
+    setRunning(running) {
+      runBtn.disabled = running
+      progress.style.display = running ? '' : 'none'
+      if (!running) progress.value = 0
+    },
+    setProgress(frac) {
+      progress.value = Math.max(0, Math.min(1, frac))
+    },
+    showDetail(detail) {
+      detailBox.replaceChildren()
+
+      const header = document.createElement('div')
+      header.className = 'cell-detail-header'
+      header.textContent = `Cell (${detail.c}, ${detail.r}) — field (${detail.xM.toFixed(2)} m, ${detail.yM.toFixed(2)} m). Worst heading: ${detail.worstHeadingDeg.toFixed(0)}°`
+      detailBox.appendChild(header)
+
+      const table = document.createElement('table')
+      table.className = 'cell-detail-table'
+      const thead = document.createElement('tr')
+      for (const h of ['Heading°', 'Score', 'Band']) {
+        const th = document.createElement('th')
+        th.textContent = h
+        thead.appendChild(th)
+      }
+      table.appendChild(thead)
+      for (const row of detail.rows) {
+        const tr = document.createElement('tr')
+        if (row.headingDeg === detail.worstHeadingDeg) tr.className = 'worst-heading'
+        const cells = [row.headingDeg.toFixed(0), row.score.toFixed(1), bandLabel(row.band)]
+        cells.forEach((text, i) => {
+          const td = document.createElement('td')
+          td.textContent = text
+          if (i === 2) td.style.color = BAND_COLORS[row.band]
+          tr.appendChild(td)
+        })
+        table.appendChild(tr)
+      }
+      detailBox.appendChild(table)
+
+      const camerasHeader = document.createElement('div')
+      camerasHeader.className = 'cell-detail-cameras-header'
+      camerasHeader.textContent = 'Cameras at worst heading:'
+      detailBox.appendChild(camerasHeader)
+
+      const camerasList = document.createElement('ul')
+      camerasList.className = 'cell-detail-cameras'
+      for (const cam of detail.worstHeadingCameras) {
+        const li = document.createElement('li')
+        li.textContent = cam.tagIds.length > 0 ? `${cam.cameraName}: tags ${cam.tagIds.join(', ')}` : `${cam.cameraName}: none`
+        camerasList.appendChild(li)
+      }
+      detailBox.appendChild(camerasList)
+    },
+    clearDetail() {
+      detailBox.replaceChildren()
+      detailBox.textContent = EMPTY_DETAIL_TEXT
+    },
+    setStale(stale) {
+      staleNote.style.display = stale ? '' : 'none'
+    },
+  }
+}

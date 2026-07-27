@@ -130,3 +130,97 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   font-size: 11px;
   margin: 4px 0;
 }
+
+.sweep-controls {
+  position: absolute;
+  left: 0;
+  right: 320px; /* leave room for .config-panel */
+  bottom: 0;
+  max-height: 45vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(20, 22, 28, 0.92);
+  color: #eee;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 10px 14px;
+}
+
+.sweep-controls-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sweep-controls-bar button {
+  background: #2a2f3a;
+  border: 1px solid #555;
+  color: #eee;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.sweep-controls-bar button:hover:not(:disabled) {
+  background: #3a3f4a;
+}
+
+.sweep-controls-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.sweep-mode-radio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sweep-controls-bar progress {
+  width: 140px;
+}
+
+.sweep-stale-note {
+  color: #ffb74d;
+}
+
+.cell-detail {
+  margin-top: 10px;
+}
+
+.cell-detail-header {
+  margin-bottom: 6px;
+  color: #ccc;
+}
+
+.cell-detail-table {
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.cell-detail-table th,
+.cell-detail-table td {
+  padding: 2px 8px;
+  text-align: right;
+  border-bottom: 1px solid #333;
+}
+
+.cell-detail-table th {
+  color: #aaa;
+  font-weight: normal;
+}
+
+.cell-detail-table tr.worst-heading td {
+  font-weight: bold;
+}
+
+.cell-detail-cameras-header {
+  color: #aaa;
+  margin-bottom: 2px;
+}
+
+.cell-detail-cameras {
+  margin: 0;
+  padding-left: 18px;
+}
