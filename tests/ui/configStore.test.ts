@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseConfig, occluderUrlForYear, saveConfig, loadConfig } from '../../src/ui/configStore'
+import { parseConfig, occluderUrlForYear, saveConfig, loadConfig, STORAGE_KEY } from '../../src/ui/configStore'
 import { DEFAULT_CONFIG } from '../../src/core/defaults'
 
 describe('parseConfig', () => {
@@ -72,5 +72,58 @@ describe('saveConfig/loadConfig localStorage guard (node has no localStorage)', 
   })
   it('saveConfig does not throw', () => {
     expect(() => saveConfig(DEFAULT_CONFIG)).not.toThrow()
+  })
+})
+
+describe('loadConfig corrupt-vs-absent distinction', () => {
+  // These simulate the two failure shapes distinctly, using a minimal
+  // localStorage stand-in (real localStorage isn't available under the
+  // node test environment — see the guard tests above) since loadConfig's
+  // three-way result (`{config}` / `{error}` / null) is exactly the
+  // fix for finding #4: main.ts must toast on real corruption but stay
+  // silent on a first-ever boot with nothing saved yet.
+  function withFakeStorage<T>(value: string | undefined, fn: () => T): T {
+    const g = globalThis as { localStorage?: unknown }
+    const prev = g.localStorage
+    g.localStorage = {
+      getItem: (k: string) => (k === STORAGE_KEY && value !== undefined ? value : null),
+      setItem: () => {},
+    }
+    try {
+      return fn()
+    } finally {
+      if (prev === undefined) delete g.localStorage
+      else g.localStorage = prev
+    }
+  }
+
+  it('returns null (silent) when nothing is saved', () => {
+    withFakeStorage(undefined, () => {
+      expect(loadConfig()).toBeNull()
+    })
+  })
+
+  it('returns {error} (not null, not throwing) when the saved value is malformed JSON', () => {
+    withFakeStorage('{not valid json', () => {
+      const result = loadConfig()
+      expect(result).not.toBeNull()
+      expect(result && 'error' in result).toBe(true)
+    })
+  })
+
+  it('returns {error} when the saved JSON is valid but fails parseConfig (e.g. negative lengthM)', () => {
+    const corrupt = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    corrupt.robot.lengthM = -1
+    withFakeStorage(JSON.stringify(corrupt), () => {
+      const result = loadConfig()
+      expect(result && 'error' in result ? result.error : null).toMatch(/lengthM/)
+    })
+  })
+
+  it('returns {config} for a valid saved config', () => {
+    withFakeStorage(JSON.stringify(DEFAULT_CONFIG), () => {
+      const result = loadConfig()
+      expect(result && 'config' in result ? result.config : null).toEqual(DEFAULT_CONFIG)
+    })
   })
 })

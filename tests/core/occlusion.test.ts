@@ -44,6 +44,27 @@ describe('occluded detection', () => {
   })
 })
 
+describe('flush-mounted camera (origin exactly on an occluder face)', () => {
+  const cam: CameraSpec = {
+    name: 't', hfovDeg: 90, vfovDeg: 60, resWidth: 1280, resHeight: 800, maxRangeM: null,
+    // mount.x = 0.15 lands exactly on the +x face of the 0.3m-wide "elevator"
+    // box below (centered at x=0, half-width 0.15), looking forward (+x,
+    // away from the box) — the flush-mount scenario from the review finding.
+    mount: { x: 0.15, y: 0, z: 0.5, rollDeg: 0, pitchDeg: 0, yawDeg: 0 },
+  }
+  const elevator = box(0, 0, 0.5, 0.3, 0.3, 0.3)
+  const tag: Tag = { id: 1, size: 0.1651, pose: { translation: vec3(3, 0, 0.5), rotation: quatFromEuler(0, 0, rad(180)) } }
+
+  it('still detects a tag in front instead of being blinded by its own flush-mounted face', () => {
+    // Before the fix, shortenEnd only shortened the ray's tag-side end, so a
+    // ray starting exactly on the box's face (tmin computed as 0) was always
+    // reported as blocked (tmin == tmax == 0), even though the camera looks
+    // away from the box. Symmetric shortening at the camera end nudges the
+    // ray's start strictly outside the box, fixing this self-occlusion.
+    expect(detectTags({ x: 0, y: 0, headingRad: 0 }, cam, [tag], [elevator])).toHaveLength(1)
+  })
+})
+
 describe('robotOccludersInField', () => {
   it('transforms superstructure boxes by robot pose', () => {
     const robot = { lengthM: 0.8, widthM: 0.8, chassisHeightM: 0.15, teamNumber: '0000', cameras: [],

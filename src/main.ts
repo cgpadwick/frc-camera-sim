@@ -68,7 +68,11 @@ async function boot() {
   const app = document.getElementById('app')!
   const ctx = createScene(app)
 
-  let config: SimConfig = loadConfig() ?? structuredClone(DEFAULT_CONFIG)
+  const loaded = loadConfig()
+  if (loaded && 'error' in loaded) {
+    showToast('Saved config was invalid — using defaults')
+  }
+  let config: SimConfig = loaded && 'config' in loaded ? loaded.config : structuredClone(DEFAULT_CONFIG)
 
   // Guard the initial load: a corrupted/unknown fieldYear that slipped into
   // localStorage (e.g. via a hand-edited import) must not brick every
@@ -207,10 +211,17 @@ async function boot() {
       if (sweepRunning) return
       sweepRunning = true
       const myGeneration = ++sweepGeneration
+      // Snapshot the config BEFORE dispatch, not at resolve time: the worker
+      // runs for a while, and a config edit mid-sweep must not retroactively
+      // change what this sweep is recorded as having measured (that would
+      // both silence markSweepStaleIfNeeded's staleness check and make the
+      // report/cell-detail describe the wrong robot). Both the worker call
+      // and lastSweep below use this same snapshot.
+      const snapshot = structuredClone(config)
       sweepControls.setRunning(true)
       sweepControls.setProgress(0)
       sweepControls.clearDetail()
-      sweepInWorker(layout, config.robot, fieldOccluders, DEFAULT_SWEEP, (frac) => {
+      sweepInWorker(layout, snapshot.robot, fieldOccluders, DEFAULT_SWEEP, (frac) => {
         if (sweepGeneration === myGeneration) sweepControls.setProgress(frac)
       })
         .then((result) => {
@@ -221,7 +232,7 @@ async function boot() {
           heatmap.show(result, sweepMode)
           lastSweep = {
             result,
-            config: structuredClone(config),
+            config: snapshot,
             fieldOccludersEmpty: fieldOccluders.length === 0,
             allTagIds: layout.tags.map((t) => t.id),
           }
@@ -329,4 +340,9 @@ async function boot() {
     lastSweep,
   } // grows in later tasks
 }
-boot().catch((e) => { document.body.innerHTML = `<pre>boot failed: ${e.message}</pre>` })
+boot().catch((e) => {
+  document.body.replaceChildren()
+  const pre = document.createElement('pre')
+  pre.textContent = `boot failed: ${e instanceof Error ? e.message : String(e)}`
+  document.body.appendChild(pre)
+})

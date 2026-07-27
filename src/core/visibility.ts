@@ -103,19 +103,31 @@ export function robotOccludersInField(robotPose: RobotPose, robot: RobotConfig):
   }))
 }
 
-// Shorten each segment by 1 cm at the tag end so a tag mounted flush on an
-// occluder box face does not self-occlude against that same face.
-function shortenEnd(a: Vec3, b: Vec3): Vec3 {
-  const len = length(sub(b, a))
-  if (len < 1e-9) return b
-  const t = Math.max(0, 1 - 0.01 / len)
-  return add(a, scale(sub(b, a), t))
+// Shorten each ray by 1 cm at *both* ends: at the tag end so a tag mounted
+// flush on an occluder box face does not self-occlude against that same
+// face, and at the camera end so a camera whose mount origin sits flush on a
+// superstructure box face (e.g. mount.x lands exactly on a 0.3m-wide
+// elevator's face) does not have tmin==tmax==0 block every ray out of the
+// gate. Symmetric shortening keeps both flush-mount cases working the same
+// way instead of only fixing the tag side.
+export const OCCLUSION_EPSILON_M = 0.01
+
+function shortenSegment(a: Vec3, b: Vec3): [Vec3, Vec3] {
+  const d = sub(b, a)
+  const len = length(d)
+  // Too short to shorten by an epsilon at each end without inverting the
+  // segment — leave it as-is; occlusion at sub-2cm range is a degenerate
+  // edge case either way.
+  if (len < 2 * OCCLUSION_EPSILON_M) return [a, b]
+  const tStart = OCCLUSION_EPSILON_M / len
+  const tEnd = 1 - OCCLUSION_EPSILON_M / len
+  return [add(a, scale(d, tStart)), add(a, scale(d, tEnd))]
 }
 
 function occludedAny(from: Vec3, targets: Vec3[], occluders: OccluderBox[]): boolean {
   if (occluders.length === 0) return false
   return targets.some((t) => {
-    const end = shortenEnd(from, t)
-    return occluders.some((b) => segmentHitsBox(from, end, b))
+    const [start, end] = shortenSegment(from, t)
+    return occluders.some((b) => segmentHitsBox(start, end, b))
   })
 }

@@ -45,6 +45,9 @@ interface CameraFrustum {
   lines: THREE.LineSegments
   positions: Float32Array
   dirs: Vec3Like[]
+  /** FOV the current `dirs` were computed from — compared each update() so an FOV edit on an existing camera (no count change, so no rebuild()) still recomputes dirs instead of leaving the drawn cone at the stale angle. */
+  hfovDeg: number
+  vfovDeg: number
   lastRange: number
 }
 
@@ -76,7 +79,7 @@ function buildCameraFrustum(spec: CameraSpec, colorIndex: number): CameraFrustum
   const lines = new THREE.LineSegments(geometry, material)
   const group = new THREE.Group()
   group.add(lines)
-  return { group, lines, positions, dirs, lastRange: -1 }
+  return { group, lines, positions, dirs, hfovDeg: spec.hfovDeg, vfovDeg: spec.vfovDeg, lastRange: -1 }
 }
 
 function disposeCameraFrustum(entry: CameraFrustum): void {
@@ -115,6 +118,12 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
         const camPose = cameraFieldPose(robotPose, spec)
         entry.group.position.set(camPose.translation.x, camPose.translation.y, camPose.translation.z)
         entry.group.quaternion.set(camPose.rotation.x, camPose.rotation.y, camPose.rotation.z, camPose.rotation.w)
+        if (entry.hfovDeg !== spec.hfovDeg || entry.vfovDeg !== spec.vfovDeg) {
+          entry.dirs = frustumCorners(spec.hfovDeg, spec.vfovDeg)
+          entry.hfovDeg = spec.hfovDeg
+          entry.vfovDeg = spec.vfovDeg
+          entry.lastRange = -1 // force the geometry rewrite below even if range happens to be unchanged
+        }
         const range = maxRangeFor(spec, tagSize)
         if (entry.lastRange !== range) {
           writeFrustumPositions(entry.positions, entry.dirs, range)

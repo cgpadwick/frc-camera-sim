@@ -120,15 +120,28 @@ export function saveConfig(c: SimConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(c))
 }
 
-/** Returns null on missing key, malformed JSON, or a browser-less environment — never throws. */
-export function loadConfig(): SimConfig | null {
+/**
+ * Discriminated result of loadConfig:
+ *  - `{ config }` — a validated SimConfig was loaded.
+ *  - `{ error }` — something WAS saved under STORAGE_KEY but failed to parse/validate
+ *    (corrupt JSON or a shape parseConfig rejects). Callers should surface this to the
+ *    user (e.g. a toast) since it means their saved config is being silently discarded.
+ *  - `null` — nothing saved (first boot / no localStorage). Silent: not an error.
+ *
+ * This module stays node-testable (no DOM), so it deliberately returns a plain value
+ * here instead of importing/calling a toast itself — main.ts owns surfacing `error`.
+ */
+export type LoadConfigResult = { config: SimConfig } | { error: string } | null
+
+/** Never throws: malformed JSON or a config parseConfig rejects comes back as `{ error }`, not a thrown exception. */
+export function loadConfig(): LoadConfigResult {
   if (!hasLocalStorage()) return null
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return null
   try {
-    return parseConfig(JSON.parse(raw))
-  } catch {
-    return null
+    return { config: parseConfig(JSON.parse(raw)) }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
   }
 }
 

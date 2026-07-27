@@ -47,6 +47,45 @@ function numberField(labelText: string, value: number, step: number, onInput: (v
   return row
 }
 
+/**
+ * Returns `v` unchanged if it's strictly positive, otherwise null. Pure (no DOM) so
+ * it's unit-testable on its own — extracted out of positiveNumberField's input
+ * handler, which is itself only exercisable in a browser/DOM environment.
+ */
+export function clampPositive(v: number): number | null {
+  return v > 0 ? v : null
+}
+
+/**
+ * Like `numberField`, but for fields configStore.ts's parseConfig requires to be
+ * strictly positive (lengthM/widthM/chassisHeightM, resWidth/resHeight, superstructure
+ * box sizes). A non-positive entry is NOT written into `working`/emitted — writing it
+ * would produce a config that parseConfig itself rejects on the next load, silently
+ * wiping the user's whole config (see loadConfig's corrupt-config path). Instead it
+ * shows an inline warning, following the same warning-div pattern as the camera FOV
+ * warning above, and leaves the last-valid value in the config untouched.
+ */
+function positiveNumberField(labelText: string, value: number, step: number, onInput: (v: number) => void): HTMLElement {
+  const wrap = document.createElement('div')
+  const warn = document.createElement('div')
+  warn.className = 'warning'
+  warn.style.display = 'none'
+  wrap.appendChild(
+    numberField(labelText, value, step, (v) => {
+      const clamped = clampPositive(v)
+      if (clamped !== null) {
+        warn.style.display = 'none'
+        onInput(clamped)
+      } else {
+        warn.textContent = `"${labelText}" must be positive — ignoring "${v}".`
+        warn.style.display = ''
+      }
+    }),
+  )
+  wrap.appendChild(warn)
+  return wrap
+}
+
 function textField(labelText: string, value: string, onInput: (v: string) => void): HTMLLabelElement {
   const row = document.createElement('label')
   row.className = 'field-row'
@@ -110,19 +149,19 @@ export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
     // --- Robot ---
     root.appendChild(heading('Robot'))
     root.appendChild(
-      numberField('Length (m)', working.robot.lengthM, 0.01, (v) => {
+      positiveNumberField('Length (m)', working.robot.lengthM, 0.01, (v) => {
         working.robot.lengthM = v
         emitChange()
       }),
     )
     root.appendChild(
-      numberField('Width (m)', working.robot.widthM, 0.01, (v) => {
+      positiveNumberField('Width (m)', working.robot.widthM, 0.01, (v) => {
         working.robot.widthM = v
         emitChange()
       }),
     )
     root.appendChild(
-      numberField('Chassis height (m)', working.robot.chassisHeightM, 0.01, (v) => {
+      positiveNumberField('Chassis height (m)', working.robot.chassisHeightM, 0.01, (v) => {
         working.robot.chassisHeightM = v
         emitChange()
       }),
@@ -159,19 +198,19 @@ export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
         }),
       )
       item.appendChild(
-        numberField('size.x', box.size.x, 0.01, (v) => {
+        positiveNumberField('size.x', box.size.x, 0.01, (v) => {
           box.size.x = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('size.y', box.size.y, 0.01, (v) => {
+        positiveNumberField('size.y', box.size.y, 0.01, (v) => {
           box.size.y = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('size.z', box.size.z, 0.01, (v) => {
+        positiveNumberField('size.z', box.size.z, 0.01, (v) => {
           box.size.z = v
           emitChange()
         }),
@@ -252,13 +291,13 @@ export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
         }),
       )
       item.appendChild(
-        numberField('resWidth', cam.resWidth, 1, (v) => {
+        positiveNumberField('resWidth', cam.resWidth, 1, (v) => {
           cam.resWidth = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('resHeight', cam.resHeight, 1, (v) => {
+        positiveNumberField('resHeight', cam.resHeight, 1, (v) => {
           cam.resHeight = v
           emitChange()
         }),

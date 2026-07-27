@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { frustumCorners, CAMERA_COLORS, createFrustumView } from '../../src/viz/frustumView'
 import { DEFAULT_CONFIG } from '../../src/core/defaults'
+import { maxRangeFor } from '../../src/core/visibility'
 import type { RobotPose } from '../../src/core/types'
 
 describe('frustumCorners', () => {
@@ -84,5 +85,40 @@ describe('createFrustumView', () => {
     // x should be greater than the robot pose x.
     const frontGroup = root.children[0]
     expect(frontGroup.position.x).toBeGreaterThan(pose.x)
+  })
+
+  it('recomputes frustum dirs (not just position) when an existing camera\'s FOV changes', () => {
+    const scene = new THREE.Scene()
+    const view = createFrustumView(scene)
+    const robotA = {
+      ...DEFAULT_CONFIG.robot,
+      cameras: [{ ...DEFAULT_CONFIG.robot.cameras[0], hfovDeg: 90, vfovDeg: 60 }],
+    }
+    view.update(pose, robotA, 0.1651)
+    const root = scene.getObjectByName('frustums')!
+    const before = (root.children[0].children[0] as THREE.LineSegments).geometry.attributes.position.array.slice()
+
+    // Same camera count (no rebuild trigger), but a different FOV.
+    const robotB = {
+      ...DEFAULT_CONFIG.robot,
+      cameras: [{ ...DEFAULT_CONFIG.robot.cameras[0], hfovDeg: 40, vfovDeg: 20 }],
+    }
+    view.update(pose, robotB, 0.1651)
+    const after = (root.children[0].children[0] as THREE.LineSegments).geometry.attributes.position.array
+
+    expect(after).not.toEqual(before)
+
+    // The far-rectangle vertex directions embedded in the redrawn geometry
+    // should now match frustumCorners(40, 20) scaled by the (unchanged)
+    // range, not the stale frustumCorners(90, 60) directions.
+    const range = maxRangeFor(robotB.cameras[0], 0.1651)
+    const expectedDirs = frustumCorners(40, 20)
+    // First 8 floats are the 4 near(0,0,0)->far edges: [0,0,0, dir*range] x4.
+    for (let i = 0; i < 4; i++) {
+      const base = i * 6 + 3 // skip the (0,0,0) near vertex, land on the far vertex
+      expect(after[base]).toBeCloseTo(expectedDirs[i].x * range, 5)
+      expect(after[base + 1]).toBeCloseTo(expectedDirs[i].y * range, 5)
+      expect(after[base + 2]).toBeCloseTo(expectedDirs[i].z * range, 5)
+    }
   })
 })
