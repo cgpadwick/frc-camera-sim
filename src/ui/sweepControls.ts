@@ -79,6 +79,8 @@ export interface SweepControlsOptions {
   onRun(): void
   onModeChange(mode: 'min' | 'avg'): void
   onClear(): void
+  onReport(): void
+  onSetBaseline(): void
 }
 
 export interface SweepControlsHandle {
@@ -94,6 +96,8 @@ export interface SweepControlsHandle {
   clearDetail(): void
   /** Shows/hides a "results may be stale" note (config or field changed since the last sweep). */
   setStale(stale: boolean): void
+  /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
+  setReportEnabled(enabled: boolean): void
 }
 
 function bandLabel(band: ReturnType<typeof scoreBand>): string {
@@ -146,6 +150,18 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   clearBtn.textContent = 'Clear'
   clearBtn.addEventListener('click', () => opts.onClear())
   bar.appendChild(clearBtn)
+
+  const reportBtn = document.createElement('button')
+  reportBtn.textContent = 'Report'
+  reportBtn.disabled = true
+  reportBtn.addEventListener('click', () => opts.onReport())
+  bar.appendChild(reportBtn)
+
+  const baselineBtn = document.createElement('button')
+  baselineBtn.textContent = 'Set as baseline'
+  baselineBtn.disabled = true
+  baselineBtn.addEventListener('click', () => opts.onSetBaseline())
+  bar.appendChild(baselineBtn)
 
   const staleNote = document.createElement('span')
   staleNote.className = 'sweep-stale-note'
@@ -221,6 +237,10 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     },
     setStale(stale) {
       staleNote.style.display = stale ? '' : 'none'
+    },
+    setReportEnabled(enabled) {
+      reportBtn.disabled = !enabled
+      baselineBtn.disabled = !enabled
     },
   }
 }

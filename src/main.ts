@@ -19,6 +19,9 @@ import { sweepInWorker } from './workers/sweepClient'
 import { DEFAULT_SWEEP } from './core/sweep'
 import type { SweepResult } from './core/sweep'
 import type { OccluderBox, SimConfig, TagLayout } from './core/types'
+import { computeReportStats } from './report/report'
+import type { ReportStats } from './report/report'
+import { renderReport, openReport } from './report/reportTemplate'
 
 /**
  * Frees GPU/canvas resources (geometries, materials, and any material
@@ -94,9 +97,19 @@ async function boot() {
   // shown heatmap and cell inspection; it's cleared whenever it would no
   // longer be valid (field change) and flagged stale (not cleared — cheap
   // version per the task brief) when the robot config changes underneath it.
-  let lastSweep: { result: SweepResult; config: SimConfig } | null = null
+  let lastSweep: {
+    result: SweepResult
+    config: SimConfig
+    /** True when `fieldOccluders` was empty at sweep time — threads into the report's optimism note. */
+    fieldOccludersEmpty: boolean
+    /** Layout tag ids at sweep time — computeReportStats needs the full layout id set (not just the ones detected) to report never-seen tags. */
+    allTagIds: number[]
+  } | null = null
   let sweepMode: 'min' | 'avg' = 'min'
   let sweepRunning = false
+  // Report baseline: a snapshot of ReportStats from a past sweep, captured via
+  // the "Set as baseline" button, compared against in the report when set.
+  let baseline: { label: string; stats: ReportStats } | null = null
   // Bumped by clearSweep() (Clear button or a field change); a sweep whose
   // generation no longer matches when its worker promise resolves was
   // superseded mid-flight and its result is discarded rather than applied.
@@ -109,12 +122,19 @@ async function boot() {
     ctx.scene.add(robotGroup)
   }
 
-  function clearSweep(): void {
+  function clearSweep(clearBaselineToo = false): void {
     sweepGeneration++
     heatmap.hide()
     lastSweep = null
     sweepControls.clearDetail()
     sweepControls.setStale(false)
+    sweepControls.setReportEnabled(false)
+    // A baseline's ReportStats are tied to the field it was swept on (cell
+    // coordinates, dead-zone counts, etc. are meaningless across different
+    // field dimensions), so a field change invalidates it too — but a plain
+    // Clear-button click (same field, e.g. re-running with new config) should
+    // leave a set baseline in place for the next report's comparison.
+    if (clearBaselineToo) baseline = null
   }
 
   function markSweepStaleIfNeeded(): void {
@@ -145,8 +165,9 @@ async function boot() {
     saveConfig(config)
     // A field change means a different grid (size/dims/occluders) — any
     // existing sweep result no longer describes this field at all, so it's
-    // disposed outright rather than merely marked stale.
-    clearSweep()
+    // disposed outright rather than merely marked stale. Any set baseline is
+    // tied to the old field's geometry too, so it's cleared as well.
+    clearSweep(true)
   }
 
   ctx.onFrame((dt) => {
@@ -177,9 +198,15 @@ async function boot() {
           // the current field/state, so it's silently dropped.
           if (sweepGeneration !== myGeneration) return
           heatmap.show(result, sweepMode)
-          lastSweep = { result, config: structuredClone(config) }
+          lastSweep = {
+            result,
+            config: structuredClone(config),
+            fieldOccludersEmpty: fieldOccluders.length === 0,
+            allTagIds: layout.tags.map((t) => t.id),
+          }
           ;(window as any).__sim.lastSweep = lastSweep
           sweepControls.setStale(false)
+          sweepControls.setReportEnabled(true)
         })
         .catch((e: unknown) => {
           showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -196,6 +223,18 @@ async function boot() {
     },
     onClear() {
       clearSweep()
+    },
+    onReport() {
+      if (!lastSweep) return
+      const stats = computeReportStats(lastSweep.result, lastSweep.config.robot, lastSweep.allTagIds)
+      const html = renderReport(stats, lastSweep.config, baseline ?? undefined, { fieldOccludersEmpty: lastSweep.fieldOccludersEmpty })
+      openReport(html)
+    },
+    onSetBaseline() {
+      if (!lastSweep) return
+      const stats = computeReportStats(lastSweep.result, lastSweep.config.robot, lastSweep.allTagIds)
+      baseline = { label: 'Baseline', stats }
+      showToast('Baseline set from the current sweep.')
     },
   })
   app.appendChild(sweepControls.el)
