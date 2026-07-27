@@ -1,6 +1,10 @@
+/// <reference lib="webworker" />
+
 import type { TagLayout, RobotConfig, OccluderBox } from '../core/types'
 import type { SweepParams } from '../core/sweep'
 import { runSweep } from '../core/sweep'
+
+declare const self: DedicatedWorkerGlobalScope
 
 self.onmessage = (e: MessageEvent) => {
   try {
