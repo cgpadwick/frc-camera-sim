@@ -3,6 +3,7 @@ import './ui/styles.css'
 import { createScene } from './viz/scene'
 import { buildFieldView } from './viz/fieldView'
 import { loadLayout, loadOccluders } from './field/layoutLoader'
+import { tryLoadFieldModel } from './field/fieldModelLoader'
 import { buildRobot } from './robot/robotBuilder'
 import { createDriveController } from './sim/driveController'
 import { DEFAULT_CONFIG } from './core/defaults'
@@ -45,12 +46,15 @@ function disposeObject3D(obj: THREE.Object3D): void {
 interface LoadedField {
   layout: TagLayout
   occluders: OccluderBox[]
+  /** null when no glb exists for this year, or it failed to load/parse — never throws, see tryLoadFieldModel. */
+  model: THREE.Group | null
 }
 
 async function loadField(year: string): Promise<LoadedField> {
   const layout = await loadLayout(`layouts/${year}.json`)
   const occluders = await loadOccluders(occluderUrlForYear(year))
-  return { layout, occluders }
+  const model = await tryLoadFieldModel(`models/${year}.glb`)
+  return { layout, occluders, model }
 }
 
 async function boot() {
@@ -78,10 +82,11 @@ async function boot() {
     config.fieldYear = bootYear
     saveConfig(config)
   }
+  if (!bootField.model) showToast('Field model unavailable — showing simplified field.', Infinity)
 
   let layout: TagLayout = bootField.layout
   let fieldOccluders: OccluderBox[] = bootField.occluders
-  let fieldGroup = buildFieldView(ctx.scene, layout)
+  let fieldGroup = buildFieldView(ctx.scene, layout, { model: bootField.model })
   let tagSize = layout.tags[0]?.size ?? 0.1651
 
   let robotGroup = buildRobot(config.robot)
@@ -158,7 +163,8 @@ async function boot() {
     layout = loaded.layout
     fieldOccluders = loaded.occluders
     tagSize = layout.tags[0]?.size ?? 0.1651
-    fieldGroup = buildFieldView(ctx.scene, layout)
+    if (!loaded.model) showToast('Field model unavailable — showing simplified field.', Infinity)
+    fieldGroup = buildFieldView(ctx.scene, layout, { model: loaded.model })
     tagHighlights = createTagHighlights(fieldGroup)
     drive.setFieldBounds(layout.field.length, layout.field.width)
     config.fieldYear = year

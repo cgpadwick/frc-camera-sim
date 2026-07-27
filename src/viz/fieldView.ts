@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { TagLayout, Quat } from '../core/types'
+import { wrapFieldModel } from '../field/fieldModelLoader'
 
 // Tag local frame (WPILib convention): +X points out of the tag face, tag
 // corners lie in the local YZ plane. THREE.PlaneGeometry lies in the local XY
@@ -51,29 +52,45 @@ function tagTexture(id: number): THREE.Texture {
   return t
 }
 
-export function buildFieldView(scene: THREE.Scene, layout: TagLayout): THREE.Group {
+export interface FieldViewOptions {
+  /**
+   * A glTF field model (already loaded via `tryLoadFieldModel`), or `null`
+   * when unavailable. When provided, it's wrapped with the coordinate
+   * correction (`wrapFieldModel`) and added in place of the procedural
+   * carpet/walls. Tag quads and the center line are built either way — the
+   * quads are the detection ground truth and highlight anchors, independent
+   * of which field geometry backs them.
+   */
+  model?: THREE.Group | null
+}
+
+export function buildFieldView(scene: THREE.Scene, layout: TagLayout, options: FieldViewOptions = {}): THREE.Group {
   const group = new THREE.Group()
   group.name = 'field'
   const { length: L, width: W } = layout.field
 
-  const carpet = new THREE.Mesh(
-    new THREE.PlaneGeometry(L, W),
-    new THREE.MeshLambertMaterial({ color: 0x2e5d34 }),
-  )
-  carpet.position.set(L / 2, W / 2, 0)
-  group.add(carpet)
+  if (options.model) {
+    group.add(wrapFieldModel(options.model, L, W))
+  } else {
+    const carpet = new THREE.Mesh(
+      new THREE.PlaneGeometry(L, W),
+      new THREE.MeshLambertMaterial({ color: 0x2e5d34 }),
+    )
+    carpet.position.set(L / 2, W / 2, 0)
+    group.add(carpet)
 
-  const wallMat = new THREE.MeshLambertMaterial({ color: 0x888888 })
-  const mkWall = (w: number, h: number, x: number, y: number, rotZ: number) => {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, h), wallMat)
-    wall.position.set(x, y, h / 2)
-    wall.rotation.z = rotZ
-    group.add(wall)
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0x888888 })
+    const mkWall = (w: number, h: number, x: number, y: number, rotZ: number) => {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, h), wallMat)
+      wall.position.set(x, y, h / 2)
+      wall.rotation.z = rotZ
+      group.add(wall)
+    }
+    mkWall(L, 0.5, L / 2, 0, 0)
+    mkWall(L, 0.5, L / 2, W, 0)
+    mkWall(W, 0.5, 0, W / 2, Math.PI / 2)
+    mkWall(W, 0.5, L, W / 2, Math.PI / 2)
   }
-  mkWall(L, 0.5, L / 2, 0, 0)
-  mkWall(L, 0.5, L / 2, W, 0)
-  mkWall(W, 0.5, 0, W / 2, Math.PI / 2)
-  mkWall(W, 0.5, L, W / 2, Math.PI / 2)
 
   const centerMat = new THREE.LineBasicMaterial({ color: 0xffffff })
   const centerLine = new THREE.Line(
