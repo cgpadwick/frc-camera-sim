@@ -1,2 +1,27 @@
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 #app { position: relative; }
+
+.hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  font-family: monospace;
+  color: #eee;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 10px 14px;
+  border-radius: 8px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hud-score {
+  font-size: 28px;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.hud-cameras {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
