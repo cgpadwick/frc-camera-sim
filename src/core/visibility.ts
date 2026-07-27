@@ -1,5 +1,5 @@
 import type { Vec3, Pose3, Tag, CameraSpec, OccluderBox, RobotPose } from './types'
-import { vec3, add, sub, length, normalize, dot, rad, quatFromEuler, quatMul, rotateVec, poseToField, fieldToFrame } from './math'
+import { vec3, sub, length, normalize, dot, rad, quatFromEuler, quatMul, rotateVec, poseToField, fieldToFrame } from './math'
 
 export const MIN_TAG_PX = 20
 export const SKEW_MAX_RAD = rad(65)
