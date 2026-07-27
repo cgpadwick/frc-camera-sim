@@ -34,14 +34,45 @@ function disposeObject3D(obj: THREE.Object3D): void {
   })
 }
 
+interface LoadedField {
+  layout: TagLayout
+  occluders: OccluderBox[]
+}
+
+async function loadField(year: string): Promise<LoadedField> {
+  const layout = await loadLayout(`layouts/${year}.json`)
+  const occluders = await loadOccluders(occluderUrlForYear(year))
+  return { layout, occluders }
+}
+
 async function boot() {
   const app = document.getElementById('app')!
   const ctx = createScene(app)
 
   let config: SimConfig = loadConfig() ?? structuredClone(DEFAULT_CONFIG)
 
-  let layout: TagLayout = await loadLayout(`layouts/${config.fieldYear}.json`)
-  let fieldOccluders: OccluderBox[] = await loadOccluders(occluderUrlForYear(config.fieldYear))
+  // Guard the initial load: a corrupted/unknown fieldYear that slipped into
+  // localStorage (e.g. via a hand-edited import) must not brick every
+  // future boot. Fall back to DEFAULT_CONFIG's field and persist the
+  // correction; if even the default field fails to load, that's a real
+  // asset problem and the boot-failed screen is the right outcome.
+  let bootYear = config.fieldYear
+  let bootField: LoadedField
+  try {
+    bootField = await loadField(bootYear)
+  } catch (e) {
+    if (bootYear === DEFAULT_CONFIG.fieldYear) throw e
+    showToast(`Failed to load field "${bootYear}": ${e instanceof Error ? e.message : String(e)} — falling back to default field.`)
+    bootYear = DEFAULT_CONFIG.fieldYear
+    bootField = await loadField(bootYear)
+  }
+  if (bootYear !== config.fieldYear) {
+    config.fieldYear = bootYear
+    saveConfig(config)
+  }
+
+  let layout: TagLayout = bootField.layout
+  let fieldOccluders: OccluderBox[] = bootField.occluders
   let fieldGroup = buildFieldView(ctx.scene, layout)
   let tagSize = layout.tags[0]?.size ?? 0.1651
 
@@ -61,22 +92,26 @@ async function boot() {
   }
 
   async function rebuildField(year: string): Promise<void> {
-    let newLayout: TagLayout
-    let newOccluders: OccluderBox[]
+    let loaded: LoadedField
     try {
-      newLayout = await loadLayout(`layouts/${year}.json`)
-      newOccluders = await loadOccluders(occluderUrlForYear(year))
+      loaded = await loadField(year)
     } catch (e) {
       showToast(`Failed to load field "${year}": ${e instanceof Error ? e.message : String(e)}`)
       return
     }
+    // Only mutate/persist fieldYear and swap live state once the load has
+    // fully succeeded — an in-flight failure must leave the old field (and
+    // the previously-saved, known-good fieldYear) untouched.
     ctx.scene.remove(fieldGroup)
     disposeObject3D(fieldGroup)
-    layout = newLayout
-    fieldOccluders = newOccluders
+    layout = loaded.layout
+    fieldOccluders = loaded.occluders
     tagSize = layout.tags[0]?.size ?? 0.1651
     fieldGroup = buildFieldView(ctx.scene, layout)
     tagHighlights = createTagHighlights(fieldGroup)
+    drive.setFieldBounds(layout.field.length, layout.field.width)
+    config.fieldYear = year
+    saveConfig(config)
   }
 
   ctx.onFrame((dt) => {
@@ -93,13 +128,19 @@ async function boot() {
   const panel = createConfigPanel({
     config,
     onChange(newConfig) {
-      config = newConfig
+      // fieldYear is main.ts's own responsibility (see rebuildField): it's
+      // only ever mutated after a field load actually succeeds. The panel's
+      // `newConfig.fieldYear` may be stale/unconfirmed (e.g. it optimistically
+      // updates on select before the async load resolves, including on a
+      // load that ultimately fails), so it is intentionally *not* trusted
+      // here — only the robot config is taken from panel edits.
+      config = { ...newConfig, fieldYear: config.fieldYear }
       saveConfig(config)
       rebuildRobot()
     },
     onFieldChange(year) {
-      config.fieldYear = year
-      saveConfig(config)
+      // config.fieldYear is only mutated + persisted inside rebuildField,
+      // after the new layout/occluders have actually loaded successfully.
       void rebuildField(year)
     },
   })

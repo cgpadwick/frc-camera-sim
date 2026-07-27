@@ -7,6 +7,12 @@ const FIELD_MARGIN = 0.4 // m, keeps the robot footprint off the walls
 export interface DriveController {
   pose: RobotPose
   update(dt: number): void
+  /**
+   * Updates the field bounds used to clamp `pose` (e.g. after switching field
+   * years) and immediately re-clamps the current pose into the new bounds,
+   * so a smaller field never leaves the robot rendered outside its walls.
+   */
+  setFieldBounds(fieldLength: number, fieldWidth: number): void
   dispose(): void
 }
 
@@ -32,23 +38,39 @@ export function integratePose(
   pose.headingRad += om * TURN * dt
 }
 
+/** True in a browser; false in Node (tests) — guards all `window` access so this module is constructible headlessly. */
+const hasWindow = typeof window !== 'undefined'
+
 export function createDriveController(fieldLength: number, fieldWidth: number): DriveController {
   const keys = new Set<string>()
   const down = (e: KeyboardEvent) => {
     if (!e.repeat && e.target === document.body) keys.add(e.key.toLowerCase())
   }
   const up = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase())
-  window.addEventListener('keydown', down)
-  window.addEventListener('keyup', up)
+  if (hasWindow) {
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+  }
+  // Mutable (not the captured params) so setFieldBounds can update them in place.
+  let length = fieldLength
+  let width = fieldWidth
   const pose: RobotPose = { x: fieldLength / 2, y: fieldWidth / 2, headingRad: 0 }
   return {
     pose,
     update(dt) {
-      integratePose(pose, keys, dt, fieldLength, fieldWidth)
+      integratePose(pose, keys, dt, length, width)
+    },
+    setFieldBounds(newLength, newWidth) {
+      length = newLength
+      width = newWidth
+      // dt=0, no keys: reuses integratePose purely for its clamp, with zero motion.
+      integratePose(pose, keys, 0, length, width)
     },
     dispose() {
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
+      if (hasWindow) {
+        window.removeEventListener('keydown', down)
+        window.removeEventListener('keyup', up)
+      }
     },
   }
 }

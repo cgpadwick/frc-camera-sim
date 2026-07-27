@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { integratePose } from '../../src/sim/driveController'
+import { integratePose, createDriveController } from '../../src/sim/driveController'
 import type { RobotPose } from '../../src/core/types'
 
 const FIELD_L = 16.54
@@ -77,5 +77,48 @@ describe('integratePose', () => {
     expect(p.x).toBeCloseTo(5, 6)
     expect(p.y).toBeCloseTo(5, 6)
     expect(p.headingRad).toBeCloseTo(1.2, 6)
+  })
+})
+
+describe('createDriveController', () => {
+  it('constructs and disposes without throwing outside a browser (no window/document in the node test env)', () => {
+    expect(() => {
+      const controller = createDriveController(16.5, 8)
+      controller.dispose()
+    }).not.toThrow()
+  })
+
+  it('setFieldBounds immediately clamps the current pose into the new (smaller) bounds', () => {
+    const controller = createDriveController(20, 10)
+    controller.pose.x = 19
+    controller.pose.y = 9
+    controller.setFieldBounds(10, 5)
+    expect(controller.pose.x).toBeCloseTo(10 - 0.4, 6)
+    expect(controller.pose.y).toBeCloseTo(5 - 0.4, 6)
+    controller.dispose()
+  })
+
+  it('setFieldBounds widening the field does not needlessly move an in-bounds pose', () => {
+    const controller = createDriveController(10, 5)
+    expect(controller.pose.x).toBeCloseTo(5, 6)
+    expect(controller.pose.y).toBeCloseTo(2.5, 6)
+    controller.setFieldBounds(20, 10)
+    expect(controller.pose.x).toBeCloseTo(5, 6)
+    expect(controller.pose.y).toBeCloseTo(2.5, 6)
+    controller.dispose()
+  })
+
+  it('update() after setFieldBounds clamps against the new bounds, not the stale ones it was constructed with', () => {
+    const controller = createDriveController(20, 10)
+    controller.setFieldBounds(10, 5)
+    // Reposition (simulating a frame where the pose drifted) back out past the *new*
+    // bounds but still within the *old* ones — only correct if update() reads the
+    // post-setFieldBounds length/width, not values captured at construction time.
+    controller.pose.x = 15
+    controller.pose.y = 8
+    controller.update(0)
+    expect(controller.pose.x).toBeCloseTo(10 - 0.4, 6)
+    expect(controller.pose.y).toBeCloseTo(5 - 0.4, 6)
+    controller.dispose()
   })
 })
