@@ -38,6 +38,20 @@ describe('poseScore', () => {
     const three = poseScore(cam([det(), det({ tagId: 2, bearingRad: 1 }), det({ tagId: 3, bearingRad: 2 })]))
     expect(three).toBeGreaterThanOrEqual(two)
   })
+  it('reviewer regression: degraded 4th tag never lowers score', () => {
+    const three = poseScore(cam([
+      det({ tagId: 1, bearingRad: 0 }),
+      det({ tagId: 2, bearingRad: Math.PI / 4 }),
+      det({ tagId: 3, bearingRad: Math.PI / 2 }),
+    ]))
+    const four = poseScore(cam([
+      det({ tagId: 1, bearingRad: 0 }),
+      det({ tagId: 2, bearingRad: Math.PI / 4 }),
+      det({ tagId: 3, bearingRad: Math.PI / 2 }),
+      det({ tagId: 4, bearingRad: Math.PI / 4, distanceM: 4.9, skewRad: 1.1, edgeMargin: 0.02 }),
+    ]))
+    expect(four).toBeGreaterThanOrEqual(three)
+  })
   it('same tag from two cameras counts once', () => {
     const one = poseScore(cam([det()]))
     const dup = poseScore([{ detections: [det()], maxRangeM: 5 }, { detections: [det()], maxRangeM: 5 }])
