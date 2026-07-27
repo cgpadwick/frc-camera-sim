@@ -13,7 +13,7 @@ import { createTagHighlights } from './viz/tagHighlights'
 import { createHud } from './ui/hud'
 import { createConfigPanel } from './ui/configPanel'
 import { loadConfig, saveConfig, occluderUrlForYear } from './ui/configStore'
-import { showToast } from './ui/toast'
+import { showToast, dismissToast } from './ui/toast'
 import { createHeatmapView } from './viz/heatmapView'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
 import { sweepInWorker } from './workers/sweepClient'
@@ -23,6 +23,13 @@ import type { OccluderBox, SimConfig, TagLayout } from './core/types'
 import { computeReportStats } from './report/report'
 import type { ReportStats } from './report/report'
 import { renderReport, openReport } from './report/reportTemplate'
+
+// Stable key for the "field model unavailable" banner, so switching between
+// model-less field years (or repeatedly reloading the same one) replaces the
+// existing banner instead of stacking a new one on top each time — see
+// showToast's `key` param. Also used to dismiss a stale banner once a later
+// field switch's model DOES load.
+const FIELD_MODEL_TOAST_KEY = 'field-model-unavailable'
 
 /**
  * Frees GPU/canvas resources (geometries, materials, and any material
@@ -82,7 +89,11 @@ async function boot() {
     config.fieldYear = bootYear
     saveConfig(config)
   }
-  if (!bootField.model) showToast('Field model unavailable — showing simplified field.', Infinity)
+  if (bootField.model) {
+    dismissToast(FIELD_MODEL_TOAST_KEY)
+  } else {
+    showToast('Field model unavailable — showing simplified field.', Infinity, FIELD_MODEL_TOAST_KEY)
+  }
 
   let layout: TagLayout = bootField.layout
   let fieldOccluders: OccluderBox[] = bootField.occluders
@@ -163,7 +174,11 @@ async function boot() {
     layout = loaded.layout
     fieldOccluders = loaded.occluders
     tagSize = layout.tags[0]?.size ?? 0.1651
-    if (!loaded.model) showToast('Field model unavailable — showing simplified field.', Infinity)
+    if (loaded.model) {
+      dismissToast(FIELD_MODEL_TOAST_KEY)
+    } else {
+      showToast('Field model unavailable — showing simplified field.', Infinity, FIELD_MODEL_TOAST_KEY)
+    }
     fieldGroup = buildFieldView(ctx.scene, layout, { model: loaded.model })
     tagHighlights = createTagHighlights(fieldGroup)
     drive.setFieldBounds(layout.field.length, layout.field.width)
