@@ -1,5 +1,5 @@
-import type { Vec3, Pose3, Tag, CameraSpec, OccluderBox, RobotPose } from './types'
-import { vec3, sub, length, normalize, dot, rad, quatFromEuler, quatMul, rotateVec, poseToField, fieldToFrame } from './math'
+import type { Vec3, Pose3, Tag, CameraSpec, OccluderBox, RobotPose, RobotConfig } from './types'
+import { vec3, add, sub, scale, length, normalize, dot, rad, deg, quatFromEuler, quatMul, rotateVec, poseToField, fieldToFrame } from './math'
 
 export const MIN_TAG_PX = 20
 export const SKEW_MAX_RAD = rad(65)
@@ -70,11 +70,52 @@ export function detectTags(robotPose: RobotPose, spec: CameraSpec, tags: Tag[], 
   return out
 }
 
-// Implemented in Task 4; stub returning false keeps Task 3 green.
-function occludedAny(_from: Vec3, _targets: Vec3[], occluders: OccluderBox[]): boolean {
-  if (occluders.length === 0) return false
-  return occluders.some((b) => targetsHitBox(_from, _targets, b))
+/** Slab-method segment vs yaw-oriented box. */
+export function segmentHitsBox(a: Vec3, b: Vec3, box: OccluderBox): boolean {
+  // Transform segment into box-local frame (undo yaw, then translate)
+  const q = quatFromEuler(0, 0, -rad(box.yawDeg))
+  const la = rotateVec(q, sub(a, box.center))
+  const lb = rotateVec(q, sub(b, box.center))
+  const d = sub(lb, la)
+  const half = scale(box.size, 0.5)
+  let tmin = 0, tmax = 1
+  for (const ax of ['x', 'y', 'z'] as const) {
+    if (Math.abs(d[ax]) < 1e-12) {
+      if (Math.abs(la[ax]) > half[ax]) return false
+    } else {
+      let t1 = (-half[ax] - la[ax]) / d[ax]
+      let t2 = (half[ax] - la[ax]) / d[ax]
+      if (t1 > t2) [t1, t2] = [t2, t1]
+      tmin = Math.max(tmin, t1)
+      tmax = Math.min(tmax, t2)
+      if (tmin > tmax) return false
+    }
+  }
+  return true
 }
-function targetsHitBox(_from: Vec3, _targets: Vec3[], _b: OccluderBox): boolean {
-  return false // replaced in Task 4
+
+export function robotOccludersInField(robotPose: RobotPose, robot: RobotConfig): OccluderBox[] {
+  const q = quatFromEuler(0, 0, robotPose.headingRad)
+  return robot.superstructure.map((b) => ({
+    center: add(vec3(robotPose.x, robotPose.y, 0), rotateVec(q, b.center)),
+    size: b.size,
+    yawDeg: b.yawDeg + deg(robotPose.headingRad),
+  }))
+}
+
+// Shorten each segment by 1 cm at the tag end so a tag mounted flush on an
+// occluder box face does not self-occlude against that same face.
+function shortenEnd(a: Vec3, b: Vec3): Vec3 {
+  const len = length(sub(b, a))
+  if (len < 1e-9) return b
+  const t = Math.max(0, 1 - 0.01 / len)
+  return add(a, scale(sub(b, a), t))
+}
+
+function occludedAny(from: Vec3, targets: Vec3[], occluders: OccluderBox[]): boolean {
+  if (occluders.length === 0) return false
+  return targets.some((t) => {
+    const end = shortenEnd(from, t)
+    return occluders.some((b) => segmentHitsBox(from, end, b))
+  })
 }
