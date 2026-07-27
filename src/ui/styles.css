@@ -25,3 +25,108 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   font-size: 13px;
   line-height: 1.5;
 }
+
+.toast {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80vw;
+  background: rgba(180, 30, 30, 0.92);
+  color: #fff;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.config-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(20, 22, 28, 0.92);
+  color: #eee;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 12px;
+}
+
+.config-panel h3 {
+  font-size: 13px;
+  margin: 14px 0 6px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 4px;
+}
+
+.config-panel h3:first-child {
+  margin-top: 0;
+}
+
+.config-panel label {
+  display: block;
+  margin: 4px 0;
+}
+
+.config-panel .field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.config-panel .field-row span {
+  flex: 0 0 auto;
+  color: #aaa;
+}
+
+.config-panel input[type='number'],
+.config-panel input[type='text'] {
+  width: 90px;
+  background: #1a1d24;
+  border: 1px solid #444;
+  color: #eee;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.config-panel select {
+  background: #1a1d24;
+  border: 1px solid #444;
+  color: #eee;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.config-panel button {
+  background: #2a2f3a;
+  border: 1px solid #555;
+  color: #eee;
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  margin: 4px 4px 4px 0;
+}
+
+.config-panel button:hover {
+  background: #3a3f4a;
+}
+
+.config-panel .list-item {
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.config-panel .warning {
+  color: #ff6b6b;
+  font-size: 11px;
+  margin: 4px 0;
+}
