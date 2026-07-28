@@ -2,6 +2,7 @@ import type { SweepResult } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
 import type { RobotConfig } from '../core/types'
 import { countBand } from '../core/evaluate'
+import { coverageScoreVsIdeal } from '../core/sweep'
 
 export type Band = ReturnType<typeof countBand>
 
@@ -13,6 +14,8 @@ export const RARE_SEEN_THRESHOLD_PCT = 2
 export interface ReportStats {
   bandPctMin: Record<Band, number>
   bandPctAvg: Record<Band, number>
+  /** Field-wide coverage vs the ideal layer (ideal = 100); null when the ideal layer is empty. */
+  scoreVsIdeal: { worstPct: number; avgPct: number } | null
   /** Cell centers with minCount <= 0 ("dead" — some heading sees zero tags), capped at DEAD_ZONE_CAP entries. */
   deadZones: { xM: number; yM: number }[]
   /** Count of additional dead cells beyond the DEAD_ZONE_CAP cutoff (0 if none). */
@@ -59,6 +62,7 @@ function bandPercentages(scores: Float32Array): Record<Band, number> {
 export function computeReportStats(result: SweepResult, robot: RobotConfig, allTagIds?: number[]): ReportStats {
   const bandPctMin = bandPercentages(result.minCount)
   const bandPctAvg = bandPercentages(result.avgCount)
+  const scoreVsIdeal = coverageScoreVsIdeal(result)
 
   const deadZonesAll: { xM: number; yM: number }[] = []
   for (let r = 0; r < result.rows; r++) {
@@ -87,5 +91,5 @@ export function computeReportStats(result: SweepResult, robot: RobotConfig, allT
     .map((t) => ({ id: t.id, seenPct: Math.min(100, t.seenPct) }))
     .sort((a, b) => a.id - b.id)
 
-  return { bandPctMin, bandPctAvg, deadZones, deadZoneOverflow, cameraShare, tagsNeverSeen, tagsRarelySeen }
+  return { scoreVsIdeal, bandPctMin, bandPctAvg, deadZones, deadZoneOverflow, cameraShare, tagsNeverSeen, tagsRarelySeen }
 }

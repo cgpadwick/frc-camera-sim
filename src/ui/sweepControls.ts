@@ -103,6 +103,8 @@ export interface SweepControlsHandle {
   setStale(stale: boolean): void
   /** Show/hide the heatmap color legend (visible only while a sweep is displayed). */
   setLegendVisible(visible: boolean): void
+  /** Coverage-vs-ideal score line (null clears/hides it). */
+  setScore(score: { worstPct: number; avgPct: number } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
 }
@@ -178,6 +180,12 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     legend.appendChild(item)
   })
   bar.appendChild(legend)
+
+  const scoreEl = document.createElement('span')
+  scoreEl.className = 'sweep-score'
+  scoreEl.title = 'Field-wide tags seen vs the ideal layer (ideal = 100)'
+  scoreEl.style.display = 'none'
+  bar.appendChild(scoreEl)
 
   const progress = document.createElement('progress')
   progress.max = 1
@@ -288,6 +296,15 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     },
     setLegendVisible(visible) {
       legend.style.display = visible ? '' : 'none'
+    },
+    setScore(score) {
+      if (!score) {
+        scoreEl.style.display = 'none'
+        scoreEl.textContent = ''
+        return
+      }
+      scoreEl.style.display = ''
+      scoreEl.textContent = `Score vs ideal: ${score.worstPct.toFixed(0)} worst · ${score.avgPct.toFixed(0)} avg`
     },
     setReportEnabled(enabled) {
       reportBtn.disabled = !enabled

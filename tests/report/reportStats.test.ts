@@ -59,6 +59,7 @@ describe('computeReportStats: dead zone cap', () => {
       cols: n, rows: 1, cellSizeM: 1, headingCount: 1,
       minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
       perHeading: new Float32Array(n),
+      idealCount: new Float32Array(minVals.length), idealRangeM: 4,
       tagSeen: {}, cameraDetections: [0, 0],
     }
     const stats = computeReportStats(sweep, robot)
@@ -74,6 +75,7 @@ describe('computeReportStats: dead zone cap', () => {
       cols: n, rows: 1, cellSizeM: 1, headingCount: 1,
       minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
       perHeading: new Float32Array(n),
+      idealCount: new Float32Array(minVals.length), idealRangeM: 4,
       tagSeen: {}, cameraDetections: [0, 0],
     }
     const stats = computeReportStats(sweep, robot)
@@ -117,6 +119,7 @@ describe('computeReportStats: tagSeen semantics (carried finding from Task 7 rev
       cols: n, rows: 1, cellSizeM: 1, headingCount: 2,
       minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
       perHeading: new Float32Array(n * 2),
+      idealCount: new Float32Array(minVals.length), idealRangeM: 4,
       tagSeen: { 7: 2 }, // 2 / 200 = 1% < 2% threshold
       cameraDetections: [2, 0],
     }

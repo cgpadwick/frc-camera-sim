@@ -24,7 +24,7 @@ import { disposeObject3D } from './viz/dispose'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
 import type { SweepViewMode } from './ui/sweepControls'
 import { sweepInWorker } from './workers/sweepClient'
-import { DEFAULT_SWEEP } from './core/sweep'
+import { DEFAULT_SWEEP, coverageScoreVsIdeal } from './core/sweep'
 import type { SweepResult } from './core/sweep'
 import type { OccluderBox, SimConfig, TagLayout } from './core/types'
 import { computeReportStats } from './report/report'
@@ -332,6 +332,7 @@ async function boot() {
     lastSweep = null
     sweepControls.clearDetail()
     sweepControls.setLegendVisible(false)
+    sweepControls.setScore(null)
     sweepControls.setStale(false)
     sweepControls.setReportEnabled(false)
     // A baseline's ReportStats are tied to the field it was swept on (cell
@@ -423,6 +424,7 @@ async function boot() {
           if (sweepGeneration !== myGeneration) return
           heatmap.show(result, sweepMode)
           sweepControls.setLegendVisible(true)
+          sweepControls.setScore(coverageScoreVsIdeal(result))
           lastSweep = {
             result,
             config: snapshot,

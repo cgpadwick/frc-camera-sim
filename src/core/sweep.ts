@@ -59,3 +59,24 @@ export function runSweep(
   }
   return { cols, rows, cellSizeM: params.cellSizeM, headingCount: params.headingCount, minCount, avgCount, perHeading, idealCount, idealRangeM: params.idealRangeM, tagSeen, cameraDetections }
 }
+
+/**
+ * Field-wide coverage efficiency vs the ideal layer: sum of per-cell actual
+ * counts (each clamped to that cell's ideal, so outranging the ideal N
+ * can't push past 100) over the summed ideal, as a 0-100 percentage.
+ * Ideal itself scores 100 by construction. Null when the ideal layer is
+ * all-zero (no tags reachable anywhere at range N).
+ */
+export function coverageScoreVsIdeal(result: SweepResult): { worstPct: number; avgPct: number } | null {
+  let sumIdeal = 0
+  let sumWorst = 0
+  let sumAvg = 0
+  for (let i = 0; i < result.idealCount.length; i++) {
+    const ideal = result.idealCount[i]
+    sumIdeal += ideal
+    sumWorst += Math.min(result.minCount[i], ideal)
+    sumAvg += Math.min(result.avgCount[i], ideal)
+  }
+  if (sumIdeal <= 0) return null
+  return { worstPct: (100 * sumWorst) / sumIdeal, avgPct: (100 * sumAvg) / sumIdeal }
+}

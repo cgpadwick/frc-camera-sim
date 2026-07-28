@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { runSweep, cellIndex } from '../../src/core/sweep'
+import { runSweep, cellIndex, coverageScoreVsIdeal } from '../../src/core/sweep'
+import type { SweepResult } from '../../src/core/sweep'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
 import type { RobotConfig } from '../../src/core/types'
 
@@ -43,5 +44,28 @@ describe('runSweep', () => {
     // omnidirectional upper bound must dominate the worst-case actual count.
     for (let i = 0; i < result.minCount.length; i++)
       expect(result.idealCount[i]).toBeGreaterThanOrEqual(result.minCount[i])
+  })
+})
+
+describe('coverageScoreVsIdeal', () => {
+  const fake = (minV: number[], avgV: number[], idealV: number[]): SweepResult => ({
+    cols: minV.length, rows: 1, cellSizeM: 1, headingCount: 2,
+    minCount: Float32Array.from(minV), avgCount: Float32Array.from(avgV),
+    perHeading: new Float32Array(minV.length * 2),
+    idealCount: Float32Array.from(idealV), idealRangeM: 4,
+    tagSeen: {}, cameraDetections: [],
+  })
+  it('ideal-equals-actual scores 100 both ways', () => {
+    const s = coverageScoreVsIdeal(fake([2, 3], [2, 3], [2, 3]))!
+    expect(s.worstPct).toBeCloseTo(100)
+    expect(s.avgPct).toBeCloseTo(100)
+  })
+  it('half coverage scores 50; actual clamped to ideal cannot exceed 100', () => {
+    const s = coverageScoreVsIdeal(fake([1, 1], [5, 5], [2, 2]))!
+    expect(s.worstPct).toBeCloseTo(50)
+    expect(s.avgPct).toBeCloseTo(100) // 5 clamps to 2 per cell
+  })
+  it('all-zero ideal returns null', () => {
+    expect(coverageScoreVsIdeal(fake([1], [1], [0]))).toBeNull()
   })
 })

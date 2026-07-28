@@ -100,6 +100,7 @@ export function renderReport(
 <h1>${title}</h1>
 <p class="subtitle">Generated ${generatedAt}</p>
 ${occluderNote}
+${stats.scoreVsIdeal ? `<p class="score-line"><b>Coverage score vs ideal: ${stats.scoreVsIdeal.worstPct.toFixed(0)} (worst-case) &middot; ${stats.scoreVsIdeal.avgPct.toFixed(0)} (average)</b> — field-wide tags seen as a percentage of what an omnidirectional ideal setup would see (ideal = 100).</p>` : ''}
 <h2>Coverage by band</h2>
 ${coverageTable}
 <h2>Dead zones</h2>

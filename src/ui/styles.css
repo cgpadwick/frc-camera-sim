@@ -427,3 +427,11 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   cursor: pointer;
   flex-shrink: 0;
 }
+
+.sweep-score {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: bold;
+  color: #4fc3f7;
+  white-space: nowrap;
+}
