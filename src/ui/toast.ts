@@ -45,6 +45,7 @@ export function showToast(
 
   const el = document.createElement('div')
   el.className = 'toast'
+  el.setAttribute('role', 'alert')
   const text = document.createElement('span')
   text.textContent = message
   el.appendChild(text)

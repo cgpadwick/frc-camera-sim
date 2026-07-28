@@ -27,6 +27,7 @@ function setFlag(key: string): void {
 function bubble(anchor: HTMLElement, text: string, isLast: boolean, onNext: () => void, onSkip: () => void): HTMLElement {
   const el = document.createElement('div')
   el.className = 'coach-mark'
+  el.setAttribute('role', 'status')
   const rect = anchor.getBoundingClientRect()
   el.style.left = `${Math.max(8, rect.left)}px`
   el.style.top = `${rect.bottom + 10}px`

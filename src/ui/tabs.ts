@@ -81,7 +81,11 @@ export function createTabBar(opts: {
   opacitySlider.value = '15'
   opacitySlider.setAttribute('aria-label', 'Cone opacity')
   opacitySlider.title = 'How solid the camera view cones look (0 = outline only)'
-  opacitySlider.addEventListener('input', () => opts.onFrustumOpacity(Number(opacitySlider.value) / 100))
+  opacitySlider.setAttribute('aria-valuetext', '15% solid')
+  opacitySlider.addEventListener('input', () => {
+    opacitySlider.setAttribute('aria-valuetext', `${opacitySlider.value}% solid`)
+    opts.onFrustumOpacity(Number(opacitySlider.value) / 100)
+  })
   opacityWrap.append(document.createTextNode('Cone opacity'), opacitySlider)
   el.appendChild(opacityWrap)
 

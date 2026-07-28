@@ -1,3 +1,25 @@
+/* --- Accessibility pass (QA round 6, phase A) --- */
+:root {
+  --ui-font: system-ui, 'Segoe UI', sans-serif;
+  --mono-font: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+/* A1: visible keyboard focus on every interactive element. */
+:focus-visible {
+  outline: 2px solid #4fc3f7 !important;
+  outline-offset: 2px;
+}
+
+/* A4: comfortable hit targets (36px desktop compromise; exceptions noted in STATUS). */
+button {
+  min-height: 32px;
+}
+
+/* A3: numeric entry stays monospace for column alignment. */
+input[type='number'] {
+  font-family: var(--mono-font);
+}
+
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 #app { position: relative; }
 
@@ -13,7 +35,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .hud {
-  font-family: monospace;
+  font-family: var(--ui-font);
   color: #eee;
   background: rgba(0, 0, 0, 0.55);
   padding: 10px 14px;
@@ -45,7 +67,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   gap: 10px;
   background: rgba(180, 30, 30, 0.92);
   color: #fff;
-  font-family: monospace;
+  font-family: var(--ui-font);
   font-size: 13px;
   padding: 10px 16px;
   border-radius: 8px;
@@ -77,8 +99,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   box-sizing: border-box;
   background: rgba(20, 22, 28, 0.92);
   color: #eee;
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   padding: 12px;
 }
 
@@ -152,7 +174,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 .config-panel .warning {
   color: #ff6b6b;
-  font-size: 11px;
+  font-size: 13px;
   margin: 4px 0;
 }
 
@@ -166,8 +188,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   box-sizing: border-box;
   background: rgba(20, 22, 28, 0.92);
   color: #eee;
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   padding: 10px 14px;
 }
 
@@ -220,6 +242,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .cell-detail-table {
+  font-family: var(--mono-font);
   border-collapse: collapse;
   margin-bottom: 8px;
 }
@@ -254,7 +277,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   display: flex;
   gap: 8px;
   align-items: center;
-  font-family: monospace;
+  font-family: var(--ui-font);
   font-size: 13px;
   color: #eee;
   background: rgba(0, 0, 0, 0.55);
@@ -264,7 +287,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .view-select select {
-  font-family: monospace;
+  font-family: var(--ui-font);
   font-size: 13px;
   background: #22262e;
   color: #eee;
@@ -285,8 +308,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .config-panel-toggle {
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   background: #22262e;
   color: #eee;
   border: 1px solid #444;
@@ -328,7 +351,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .tab-bar button {
-  font-family: monospace;
+  font-family: var(--ui-font);
   font-size: 13px;
   background: #22262e;
   color: #aaa;
@@ -355,8 +378,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   position: absolute;
   left: 12px;
   bottom: 12px;
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   line-height: 1.7;
   color: #ddd;
   background: rgba(0, 0, 0, 0.6);
@@ -380,8 +403,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .box-toolbar button {
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   background: #22262e;
   color: #ccc;
   border: 1px solid #444;
@@ -400,8 +423,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   display: flex;
   gap: 12px;
   align-items: center;
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   color: #ddd;
 }
 
@@ -436,8 +459,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .cell-detail-close {
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   background: #22262e;
   color: #ccc;
   border: 1px solid #444;
@@ -448,7 +471,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .sweep-score {
-  font-family: monospace;
+  font-family: var(--ui-font);
   font-size: 13px;
   font-weight: bold;
   color: #4fc3f7;
@@ -469,8 +492,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .optimize-status {
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   color: #ffc107;
   white-space: nowrap;
 }
@@ -496,8 +519,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .toast-action {
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   margin-left: 10px;
   background: #3a4150;
   color: #4fc3f7;
@@ -511,8 +534,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: monospace;
-  font-size: 12px;
+  font-family: var(--ui-font);
+  font-size: 13px;
   color: #ffc107;
   background: rgba(255, 193, 7, 0.08);
   border: 1px solid rgba(255, 193, 7, 0.4);
@@ -525,7 +548,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   border: none;
   color: #ffc107;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   padding: 0 2px;
 }
 
@@ -539,7 +562,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .hud-subtitle {
-  font-size: 11px;
+  font-size: 13px;
   color: #9aa4b0;
   margin-top: -2px;
   margin-bottom: 6px;
@@ -622,7 +645,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .editor-help-toggle {
-  font-family: monospace;
+  font-family: var(--ui-font);
   font-size: 13px;
   width: 22px;
   height: 22px;
@@ -632,4 +655,17 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   color: #ccc;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+button:disabled {
+  color: #8a94a2;
+  opacity: 1;
+}
+
+/* A5: heatmap hover readout in the legend row. */
+.hover-readout {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  color: #eee;
+  white-space: nowrap;
 }

@@ -111,6 +111,8 @@ export interface SweepControlsHandle {
   setStale(stale: boolean): void
   /** Show/hide the heatmap color legend (visible only while a sweep is displayed). */
   setLegendVisible(visible: boolean): void
+  /** A5: per-cell hover readout in the legend row (null clears). */
+  setHoverReadout(text: string | null): void
   /** Coverage-vs-ideal score line (null clears/hides it). */
   setScore(score: { worstPct: number; idealRangeM: number } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
@@ -145,6 +147,9 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
   const bar = document.createElement('div')
   bar.className = 'sweep-controls-bar'
+  // A7: the mode radios form a group for assistive tech.
+  bar.setAttribute('role', 'toolbar')
+  bar.setAttribute('aria-label', 'Coverage analysis')
   el.appendChild(bar)
 
   const runBtn = document.createElement('button')
@@ -171,8 +176,14 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     }
     return label
   }
-  bar.appendChild(radio('min', 'Realistic (worst-case robot heading)', true, 'Your cameras, judged at the worst of 16 robot facings per spot'))
-  bar.appendChild(radio('ideal', 'Theoretical best', false, 'What a perfect all-direction camera setup could see — the ceiling no mounting can beat'))
+  const modeGroup = document.createElement('span')
+  modeGroup.setAttribute('role', 'radiogroup')
+  modeGroup.setAttribute('aria-label', 'Coverage view')
+  modeGroup.style.display = 'inline-flex'
+  modeGroup.style.gap = '12px'
+  modeGroup.appendChild(radio('min', 'Realistic (worst-case robot heading)', true, 'Your cameras, judged at the worst of 16 robot facings per spot'))
+  modeGroup.appendChild(radio('ideal', 'Theoretical best', false, 'What a perfect all-direction camera setup could see — the ceiling no mounting can beat'))
+  bar.appendChild(modeGroup)
 
   const idealLabel = document.createElement('label')
   idealLabel.className = 'sweep-mode-radio'
@@ -235,6 +246,11 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   })
   bar.appendChild(legend)
 
+  const hoverReadout = document.createElement('span')
+  hoverReadout.className = 'hover-readout'
+  hoverReadout.style.display = 'none'
+  bar.appendChild(hoverReadout)
+
   const scoreEl = document.createElement('span')
   scoreEl.className = 'sweep-score'
   scoreEl.style.display = 'none'
@@ -288,6 +304,8 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   // trace a user who tabbed away can find (QA round 3, finding 6b).
   const outcomeWrap = document.createElement('span')
   outcomeWrap.className = 'optimize-outcome'
+  outcomeWrap.setAttribute('role', 'status')
+  outcomeWrap.setAttribute('aria-live', 'polite')
   outcomeWrap.style.display = 'none'
   const outcomeText = document.createElement('span')
   const outcomeClose = document.createElement('button')
@@ -319,6 +337,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
   const staleNote = document.createElement('span')
   staleNote.className = 'sweep-stale-note'
+  staleNote.setAttribute('role', 'status')
   staleNote.textContent = 'Config changed since last sweep — results may be stale.'
   staleNote.style.display = 'none'
   bar.appendChild(staleNote)
@@ -403,6 +422,11 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     },
     setLegendVisible(visible) {
       legend.style.display = visible ? '' : 'none'
+      if (!visible) hoverReadout.style.display = 'none'
+    },
+    setHoverReadout(text) {
+      hoverReadout.style.display = text ? '' : 'none'
+      hoverReadout.textContent = text ?? ''
     },
     setScore(score) {
       if (!score) {

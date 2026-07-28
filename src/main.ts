@@ -229,6 +229,14 @@ async function boot() {
   }
 
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      // A2: Esc backs out of transient UI regardless of focus target.
+      sweepControls.clearDetail()
+      purposeChip.remove()
+      for (const mark of document.querySelectorAll('.coach-mark')) mark.remove()
+      detachRobotGizmo()
+      return
+    }
     if (e.repeat || e.target !== document.body) return
     if (e.key.toLowerCase() === 'v' && appMode === 'field') viewManager.cycle()
     if (e.key.toLowerCase() === 'f') setFrustumsVisible(!frustumsVisible)
@@ -717,6 +725,29 @@ async function boot() {
   // Cell inspection: DOUBLE-click a heatmap cell to inspect it. Single
   // clicks are far too overloaded on this canvas (deselect robot, orbit
   // slop) and made the inspector pop up constantly — dblclick is deliberate.
+  // A5: color is not the only encoding — hovering a swept cell reads out
+  // its value in the legend row.
+  ctx.renderer.domElement.addEventListener('pointermove', (e) => {
+    if (!lastSweep || appMode !== 'field') return
+    const rect = ctx.renderer.domElement.getBoundingClientRect()
+    const ndc = {
+      x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      y: -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+    }
+    const shown = proposalView === 'proposed' && proposal ? proposal.result : lastSweep.result
+    const cell = heatmap.pickCell(ndc, ctx.camera)
+    if (!cell) {
+      sweepControls.setHoverReadout(null)
+      return
+    }
+    const i = cell.r * shown.cols + cell.c
+    const v = sweepMode === 'min' ? shown.minCount[i] : shown.idealCount[i]
+    const label = sweepMode === 'min' ? 'tags @ worst heading' : 'tags (theoretical best)'
+    const n = Math.round(v * 10) / 10
+    sweepControls.setHoverReadout(`hover: ${n} ${label}`)
+  })
+  ctx.renderer.domElement.addEventListener('pointerleave', () => sweepControls.setHoverReadout(null))
+
   ctx.renderer.domElement.addEventListener('dblclick', (e) => {
     if (!lastSweep) return
     // Robot clicks belong to the move gizmo, not cell inspection.
