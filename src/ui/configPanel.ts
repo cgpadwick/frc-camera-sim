@@ -111,6 +111,8 @@ export interface ConfigPanel {
   el: HTMLElement
   /** Replace the working copy with `config` (authoritative, from main.ts) and re-render — e.g. after the robot editor moves a camera. */
   refresh(config: SimConfig): void
+  /** Scroll the camera's section into view and mark it selected (null clears). */
+  highlightCamera(index: number | null): void
 }
 
 export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
@@ -266,6 +268,7 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     working.robot.cameras.forEach((cam, i) => {
       const item = document.createElement('div')
       item.className = 'list-item'
+      item.dataset.camIndex = String(i)
       item.appendChild(labelOnly(`Camera ${i}`))
       item.appendChild(
         textField('name', cam.name, (v) => {
@@ -422,6 +425,14 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     refresh(config) {
       working = structuredClone(config)
       renderPanel()
+    },
+    highlightCamera(index) {
+      for (const el of root.querySelectorAll('.list-item.selected')) el.classList.remove('selected')
+      if (index === null) return
+      const item = root.querySelector(`[data-cam-index="${index}"]`)
+      if (!item) return
+      item.classList.add('selected')
+      item.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     },
   }
 }

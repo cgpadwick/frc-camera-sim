@@ -324,3 +324,10 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   color: #fff;
   border-color: #6a7385;
 }
+
+.config-panel .list-item.selected {
+  outline: 1px solid #4fc3f7;
+  outline-offset: 2px;
+  border-radius: 4px;
+  background: rgba(79, 195, 247, 0.08);
+}

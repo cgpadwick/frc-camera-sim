@@ -113,11 +113,14 @@ async function boot() {
   // Saved field-mode camera so tab switches round-trip the viewpoint.
   const savedFieldCam = { position: new THREE.Vector3(), target: new THREE.Vector3() }
 
+  let selectedCameraIndex: number | null = null
+
   /** Editor moved/added a camera: mutate config; on commit persist + sync all consumers. */
   function applyEditorRobotChange(commit: boolean): void {
     if (!commit) return
     saveConfig(config)
     panel.refresh(config)
+    panel.highlightCamera(selectedCameraIndex) // refresh() rebuilt the DOM
     rebuildRobot()
     viewSelect.refresh(config.robot.cameras.map((c) => c.name))
     markSweepStaleIfNeeded()
@@ -144,6 +147,10 @@ async function boot() {
         mount,
       })
       applyEditorRobotChange(true)
+    },
+    onSelectCamera(index) {
+      selectedCameraIndex = index
+      panel.highlightCamera(index)
     },
   })
 

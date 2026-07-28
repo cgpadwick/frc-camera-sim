@@ -22,6 +22,8 @@ export interface RobotEditorOptions {
   onMountUpdate(u: MountUpdate): void
   /** Add a new camera with this mount; implementation appends to config. */
   onAddCamera(mount: CameraSpec['mount']): void
+  /** Camera gizmo clicked/grabbed (null = clicked empty space) — main.ts mirrors this into the config panel. */
+  onSelectCamera(index: number | null): void
 }
 
 export interface RobotEditor {
@@ -62,7 +64,24 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
 
   let addArmed = false
   let dragIndex: number | null = null
+  let selectedIndex: number | null = null
+  // White wireframe box around the selected gizmo; re-targeted on selection.
+  let selectionBox: THREE.BoxHelper | null = null
   const raycaster = new THREE.Raycaster()
+
+  function select(index: number | null): void {
+    selectedIndex = index
+    if (selectionBox) {
+      scene.remove(selectionBox)
+      selectionBox.dispose()
+      selectionBox = null
+    }
+    if (index !== null && handles.children[index]) {
+      selectionBox = new THREE.BoxHelper(handles.children[index], 0xffffff)
+      scene.add(selectionBox)
+    }
+    opts.onSelectCamera(index)
+  }
 
   function robotMeshes(): THREE.Object3D[] {
     const out: THREE.Object3D[] = []
@@ -136,6 +155,8 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
         opts.onAddCamera(mountFromHit(hit))
         addArmed = false
         ctx.renderer.domElement.style.cursor = ''
+        syncHandles(opts.getRobot()) // gizmo must exist before selecting it
+        select(opts.getRobot().cameras.length - 1)
       }
       return
     }
@@ -146,8 +167,11 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       while (top && top.parent !== handles) top = top.parent
       if (top) {
         dragIndex = handles.children.indexOf(top)
+        select(dragIndex)
         ctx.controls.enabled = false
       }
+    } else if (!surfaceHit(e)) {
+      select(null) // clicked empty space
     }
   }
 
@@ -177,6 +201,8 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     update() {
       const robot = opts.getRobot()
       syncHandles(robot)
+      if (selectedIndex !== null && selectedIndex >= robot.cameras.length) select(null)
+      selectionBox?.update() // track the gizmo while it's dragged
       frustums.update(EDITOR_POSE, robot, opts.getTagSize())
     },
     setActive(active) {
