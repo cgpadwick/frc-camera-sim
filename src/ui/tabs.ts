@@ -7,6 +7,15 @@ export interface WorkflowState {
   optimizeActive: boolean
 }
 
+/**
+ * Pure step-inference rule (QA round 6 spec): robot view → 1; field view
+ * with the optimizer running or a proposal open → 3; otherwise → 2.
+ */
+export function inferStep(mode: AppMode, state: WorkflowState): 1 | 2 | 3 {
+  if (mode === 'robot') return 1
+  return state.optimizeActive ? 3 : 2
+}
+
 export interface TabBar {
   el: HTMLElement
   current(): AppMode
@@ -76,11 +85,7 @@ export function createTabBar(opts: {
     return { n, btn, check }
   })
 
-  /** Current step from mode + state, per the round-6 spec's inference rules. */
-  function currentStep(): 1 | 2 | 3 {
-    if (mode === 'robot') return 1
-    return state.optimizeActive ? 3 : 2
-  }
+  const currentStep = (): 1 | 2 | 3 => inferStep(mode, state)
 
   const addBtn = document.createElement('button')
   const addBoxBtn = document.createElement('button')

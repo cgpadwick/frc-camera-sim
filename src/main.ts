@@ -630,7 +630,6 @@ async function boot() {
       // 16 headings = the same worst-case standard the final score uses; coarser cells only.
       const coarse = { cellSizeM: 0.5, headingCount: 16, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
       sweepControls.setOptimizing('Optimizing…')
-      refreshWorkflowState()
       const myGeneration = sweepGeneration
       optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
         sweepControls.setOptimizing(`Optimizing… ${p.evals.toLocaleString()}/${p.totalEvals.toLocaleString()} mounts (${Math.round((100 * p.evals) / p.totalEvals)}%) · best ≈${p.bestWorstPct.toFixed(0)}`)
@@ -678,6 +677,9 @@ async function boot() {
           sweepControls.setOptimizing(null)
           refreshWorkflowState()
         })
+      // AFTER the handle exists — refreshing before this line was the
+      // round-6c bug: optimizeActive read false and step 3 never lit.
+      refreshWorkflowState()
     },
     onCancelOptimize() {
       optimizeHandle?.cancel()
