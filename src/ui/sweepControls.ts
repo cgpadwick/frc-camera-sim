@@ -151,18 +151,39 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
   const idealLabel = document.createElement('label')
   idealLabel.className = 'sweep-mode-radio'
+  const idealRangeSelect = document.createElement('select')
+  for (const [value, text] of [
+    ['auto', 'Match my cameras'],
+    ['custom', 'Custom…'],
+  ]) {
+    const o = document.createElement('option')
+    o.value = value
+    o.textContent = text
+    idealRangeSelect.appendChild(o)
+  }
   const idealRangeInput = document.createElement('input')
   idealRangeInput.type = 'number'
-  idealRangeInput.min = '0'
+  idealRangeInput.min = '0.5'
   idealRangeInput.step = '0.5'
-  idealRangeInput.value = '0'
+  idealRangeInput.value = '4'
   idealRangeInput.style.width = '3.5em'
-  idealRangeInput.title = 'Ideal-view detection range in meters. 0 = auto: match the longest camera range, so ideal always covers actual. Applies on the next Run.'
-  idealRangeInput.addEventListener('change', () => {
-    const v = Number(idealRangeInput.value)
-    if (Number.isFinite(v) && v >= 0) opts.onIdealRangeChange(v)
+  idealRangeInput.style.display = 'none'
+  idealRangeInput.title = 'Fixed ideal-view range in meters. Applies on the next Run.'
+  const emitIdealRange = (): void => {
+    if (idealRangeSelect.value === 'auto') {
+      opts.onIdealRangeChange(0) // 0 = auto (longest camera reach)
+    } else {
+      const v = Number(idealRangeInput.value)
+      if (Number.isFinite(v) && v > 0) opts.onIdealRangeChange(v)
+    }
+  }
+  idealRangeSelect.title = 'How far the ideal (upper-bound) view can see. "Match my cameras" uses your longest camera range so ideal always covers actual.'
+  idealRangeSelect.addEventListener('change', () => {
+    idealRangeInput.style.display = idealRangeSelect.value === 'custom' ? '' : 'none'
+    emitIdealRange()
   })
-  idealLabel.append(document.createTextNode('Ideal range (m, 0=auto)'), idealRangeInput)
+  idealRangeInput.addEventListener('change', emitIdealRange)
+  idealLabel.append(document.createTextNode('Ideal range'), idealRangeSelect, idealRangeInput)
   bar.appendChild(idealLabel)
 
   const legend = document.createElement('div')
