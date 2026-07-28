@@ -95,6 +95,8 @@ export interface OptimizeOptions {
   pitchOffsetsDeg?: number[]
   /** Greedy passes over all cameras. */
   rounds?: number
+  /** Independent greedy runs: 1 from the current config + (restarts-1) from deterministic random seeds; best wins. */
+  restarts?: number
   /** Indices of cameras to leave untouched. */
   lockedCameras?: number[]
   onProgress?(p: { evals: number; totalEvals: number; bestScore: number; cameraIndex: number; round: number }): void
@@ -456,73 +458,98 @@ export function optimizeCameraMounts(
   fieldOccluders: OccluderBox[],
   opts: OptimizeOptions,
 ): OptimizeResult {
-  const yawOffsets = opts.yawOffsetsDeg ?? [-30, 0, 30]
-  const pitchOffsets = opts.pitchOffsetsDeg ?? [0, 15]
+  const yawOffsets = opts.yawOffsetsDeg ?? [-30, -15, 0, 15, 30]
+  const pitchOffsets = opts.pitchOffsetsDeg ?? [-25, -15, -5, 0, 10]
   const rounds = opts.rounds ?? 2
+  const restarts = opts.restarts ?? 2
   const locked = new Set(opts.lockedCameras ?? [])
   const candidates = sampleMountCandidates(robot)
   const rangeCapM = opts.sweepParams.rangeCapM ?? Infinity
 
-  const working: RobotConfig = structuredClone(robot)
-  const grid = buildPoseGrid(working, layout, fieldOccluders, opts.sweepParams)
+  const grid = buildPoseGrid(robot, layout, fieldOccluders, opts.sweepParams)
   const tagsPre = precomputeTags(layout, grid.tagBit)
   const tagSize = layout.tags[0]?.size ?? 0.1651
-  // Initial masks use the general path (user mounts may have roll != 0).
-  const masks = working.cameras.map((spec) => cameraMasks(grid, spec, layout.tags, rangeCapM))
-  // Candidate masks depend only on optics + mount; identical camera models
-  // and repeat rounds hit this cache instead of re-raycasting.
+  // Candidate masks depend only on optics + mount; identical camera models,
+  // repeat rounds, AND restarts all hit this cache instead of re-raycasting.
   const maskCache = new Map<string, Uint32Array>()
   const opticsKey = (c: CameraSpec): string =>
     `${c.hfovDeg}|${c.vfovDeg}|${c.resWidth}|${c.resHeight}|${c.maxRangeM ?? 'auto'}`
 
-  let bestScore = scoreMasks(grid, masks)
-  let evals = 1
-  const freeCams = working.cameras.map((_, i) => i).filter((i) => !locked.has(i))
-  const totalEvals = 1 + rounds * freeCams.length * candidates.length * yawOffsets.length * pitchOffsets.length
+  let evals = 0
+  let stopped = false
+  const freeCamCount = robot.cameras.filter((_, i) => !locked.has(i)).length
+  const effectiveRestarts = freeCamCount > 0 ? restarts : 1
+  const totalEvals =
+    effectiveRestarts * (1 + rounds * freeCamCount * candidates.length * yawOffsets.length * pitchOffsets.length)
 
-  for (let round = 0; round < rounds; round++) {
-    for (const ci of freeCams) {
-      const others = masks.filter((_, i) => i !== ci)
-      let bestMount = { ...working.cameras[ci].mount }
-      let bestMask = masks[ci]
-      for (const cand of candidates) {
-        for (const dy of yawOffsets) {
-          for (const dp of pitchOffsets) {
-            if (opts.shouldStop?.()) {
-              working.cameras[ci].mount = bestMount
-              masks[ci] = bestMask
-              return { cameras: working.cameras, score: bestScore, evals }
+  let overallBest: OptimizeResult | null = null
+
+  for (let restart = 0; restart < effectiveRestarts && !stopped; restart++) {
+    const working: RobotConfig = structuredClone(robot)
+    const freeCams = working.cameras.map((_, i) => i).filter((i) => !locked.has(i))
+    if (restart > 0) {
+      // Deterministic pseudo-random seeding (no RNG: reproducible runs) —
+      // scatter free cameras across candidate mounts to escape the local
+      // optimum the user's current layout sits in.
+      freeCams.forEach((ci, k) => {
+        const cand = candidates[(restart * 7919 + k * 104729) % candidates.length]
+        working.cameras[ci].mount = { x: cand.x, y: cand.y, z: cand.z, rollDeg: 0, yawDeg: cand.yawDeg, pitchDeg: cand.pitchDeg }
+      })
+    }
+    // Initial masks use the general path (user mounts may have roll != 0).
+    const masks = working.cameras.map((spec) => cameraMasks(grid, spec, layout.tags, rangeCapM))
+    let bestScore = scoreMasks(grid, masks)
+    evals++
+
+    for (let round = 0; round < rounds && !stopped; round++) {
+      for (const ci of freeCams) {
+        if (stopped) break
+        const others = masks.filter((_, i) => i !== ci)
+        let bestMount = { ...working.cameras[ci].mount }
+        let bestMask = masks[ci]
+        for (const cand of candidates) {
+          for (const dy of yawOffsets) {
+            for (const dp of pitchOffsets) {
+              if (opts.shouldStop?.()) {
+                stopped = true
+                break
+              }
+              const mount = {
+                x: cand.x,
+                y: cand.y,
+                z: cand.z,
+                rollDeg: 0,
+                yawDeg: normDeg(cand.yawDeg + dy),
+                pitchDeg: clamp(cand.pitchDeg + dp, -60, 60),
+              }
+              const key = `${opticsKey(working.cameras[ci])}@${mount.x},${mount.y},${mount.z},${mount.yawDeg},${mount.pitchDeg}`
+              let candMask = maskCache.get(key)
+              if (!candMask) {
+                candMask = fastCameraMasks(grid, { ...working.cameras[ci], mount }, tagsPre, tagSize, rangeCapM)
+                maskCache.set(key, candMask)
+              }
+              const s = scoreMasks(grid, [...others, candMask])
+              evals++
+              if (s > bestScore) {
+                bestScore = s
+                bestMount = mount
+                bestMask = candMask
+              }
             }
-            const mount = {
-              x: cand.x,
-              y: cand.y,
-              z: cand.z,
-              rollDeg: 0,
-              yawDeg: normDeg(cand.yawDeg + dy),
-              pitchDeg: clamp(cand.pitchDeg + dp, -60, 60),
-            }
-            const key = `${opticsKey(working.cameras[ci])}@${mount.x},${mount.y},${mount.z},${mount.yawDeg},${mount.pitchDeg}`
-            let candMask = maskCache.get(key)
-            if (!candMask) {
-              candMask = fastCameraMasks(grid, { ...working.cameras[ci], mount }, tagsPre, tagSize, rangeCapM)
-              maskCache.set(key, candMask)
-            }
-            const s = scoreMasks(grid, [...others, candMask])
-            evals++
-            if (s > bestScore) {
-              bestScore = s
-              bestMount = mount
-              bestMask = candMask
-            }
+            if (stopped) break
           }
+          opts.onProgress?.({ evals, totalEvals, bestScore: Math.max(bestScore, overallBest?.score ?? 0), cameraIndex: ci, round })
+          if (stopped) break
         }
-        opts.onProgress?.({ evals, totalEvals, bestScore, cameraIndex: ci, round })
+        working.cameras[ci].mount = bestMount
+        masks[ci] = bestMask
       }
-      working.cameras[ci].mount = bestMount
-      masks[ci] = bestMask
+    }
+    if (!overallBest || bestScore > overallBest.score) {
+      overallBest = { cameras: structuredClone(working.cameras), score: bestScore, evals }
     }
   }
-  return { cameras: working.cameras, score: bestScore, evals }
+  return { ...(overallBest as OptimizeResult), evals }
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
@@ -532,3 +559,6 @@ const normDeg = (d: number): number => {
   if (x < -180) x += 360
   return Number(x.toFixed(1))
 }
+
+/** Test-only access to internals for parity verification. */
+export const __test = { buildPoseGrid, cameraMasks, fastCameraMasks, precomputeTags }
