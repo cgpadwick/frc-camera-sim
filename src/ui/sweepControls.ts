@@ -230,7 +230,16 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
       const header = document.createElement('div')
       header.className = 'cell-detail-header'
-      header.textContent = `Cell (${detail.c}, ${detail.r}) — field (${detail.xM.toFixed(2)} m, ${detail.yM.toFixed(2)} m). Worst heading: ${detail.worstHeadingDeg.toFixed(0)}°`
+      const title = document.createElement('span')
+      title.textContent = `🔍 Cell inspector — field (${detail.xM.toFixed(2)} m, ${detail.yM.toFixed(2)} m): tags visible at each robot heading. Worst: ${detail.worstHeadingDeg.toFixed(0)}°`
+      const closeBtn = document.createElement('button')
+      closeBtn.className = 'cell-detail-close'
+      closeBtn.textContent = '✕ close'
+      closeBtn.addEventListener('click', () => {
+        detailBox.replaceChildren()
+        detailBox.textContent = EMPTY_DETAIL_TEXT
+      })
+      header.append(title, closeBtn)
       detailBox.appendChild(header)
 
       const table = document.createElement('table')
