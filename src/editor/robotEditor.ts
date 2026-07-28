@@ -79,6 +79,45 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   stripBakedCameraMarkers(robotGroup)
   scene.add(robotGroup)
 
+  // --- Front (+X) indicator: floor chevron + "FRONT" label ahead of the bumper ---
+  const frontIndicator = new THREE.Group()
+  {
+    const chevron = new THREE.Shape()
+    chevron.moveTo(0.14, 0)
+    chevron.lineTo(-0.02, 0.09)
+    chevron.lineTo(0.02, 0)
+    chevron.lineTo(-0.02, -0.09)
+    chevron.closePath()
+    const mesh = new THREE.Mesh(
+      new THREE.ShapeGeometry(chevron),
+      new THREE.MeshBasicMaterial({ color: 0xffc107, transparent: true, opacity: 0.9 }),
+    )
+    mesh.position.z = 0.002 // just above the grid
+    frontIndicator.add(mesh)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 96
+    const g = canvas.getContext('2d')!
+    g.font = 'bold 64px monospace'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillStyle = '#ffc107'
+    g.fillText('FRONT', 128, 48)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }))
+    label.scale.set(0.36, 0.135, 1)
+    label.position.set(0.3, 0, 0.06)
+    frontIndicator.add(label)
+  }
+  scene.add(frontIndicator)
+
+  function updateFrontIndicator(): void {
+    frontIndicator.position.x = opts.getRobot().lengthM / 2 + 0.12
+  }
+  updateFrontIndicator()
+
   const handles = new THREE.Group()
   handles.name = 'camera-handles'
   scene.add(handles)
@@ -362,6 +401,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       robotGroup = buildRobot(opts.getRobot())
       stripBakedCameraMarkers(robotGroup)
       scene.add(robotGroup)
+      updateFrontIndicator() // robot length may have changed
       // Re-attach the gizmo to the freshly built mesh (old one was disposed).
       if (keepBox !== null && keepBox < opts.getRobot().superstructure.length) {
         selectBox(keepBox)
