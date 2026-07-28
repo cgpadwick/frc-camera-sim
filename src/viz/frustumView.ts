@@ -76,9 +76,9 @@ function writeFrustumPositions(out: Float32Array, dirs: Vec3Like[], range: numbe
 // Indexed triangles over [apex, c0, c1, c2, c3]: 4 side faces + far quad.
 const FILL_INDEX = [0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1, 1, 2, 3, 1, 3, 4]
 
-function buildCameraFrustum(spec: CameraSpec, colorIndex: number, fillOpacity: number): CameraFrustum {
+function buildCameraFrustum(spec: CameraSpec, colorIndex: number, fillOpacity: number, colorOverride?: number): CameraFrustum {
   const dirs = frustumCorners(spec.hfovDeg, spec.vfovDeg)
-  const color = CAMERA_COLORS[colorIndex % CAMERA_COLORS.length]
+  const color = colorOverride ?? CAMERA_COLORS[colorIndex % CAMERA_COLORS.length]
   const positions = new Float32Array(VERT_COUNT * 3)
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
@@ -135,7 +135,7 @@ export interface FrustumView {
 }
 
 /** Live wireframe camera frustums, one per configured camera, reparented under a 'frustums' group. */
-export function createFrustumView(scene: THREE.Scene): FrustumView {
+export function createFrustumView(scene: THREE.Scene, opts?: { colorOverride?: number }): FrustumView {
   const root = new THREE.Group()
   root.name = 'frustums'
   scene.add(root)
@@ -148,7 +148,7 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
       disposeCameraFrustum(entry)
     }
     cameras = specs.map((spec, i) => {
-      const entry = buildCameraFrustum(spec, i, fillOpacity)
+      const entry = buildCameraFrustum(spec, i, fillOpacity, opts?.colorOverride)
       root.add(entry.group)
       return entry
     })

@@ -24,9 +24,12 @@ import { disposeObject3D } from './viz/dispose'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
 import type { SweepViewMode } from './ui/sweepControls'
 import { sweepInWorker } from './workers/sweepClient'
+import { optimizeInWorker } from './workers/optimizeClient'
+import type { OptimizeHandle } from './workers/optimizeClient'
+import { buildCameraGizmo } from './viz/cameraModel'
 import { DEFAULT_SWEEP, coverageScoreVsIdeal } from './core/sweep'
 import type { SweepResult } from './core/sweep'
-import type { OccluderBox, SimConfig, TagLayout } from './core/types'
+import type { OccluderBox, RobotConfig, SimConfig, TagLayout } from './core/types'
 import { computeReportStats } from './report/report'
 import type { ReportStats } from './report/report'
 import { renderReport, openReport } from './report/reportTemplate'
@@ -100,6 +103,51 @@ async function boot() {
   let tagHighlights = createTagHighlights(fieldGroup)
   const hud = createHud(app)
   const heatmap = createHeatmapView(ctx.scene)
+
+  // --- Optimizer proposal state + ghost visuals (white = proposed mounts) ---
+  const GHOST_WHITE = 0xffffff
+  const ghostFrustums = createFrustumView(ctx.scene, { colorOverride: GHOST_WHITE })
+  let ghostGizmos: THREE.Group | null = null
+  let proposal: { robot: RobotConfig; result: SweepResult; score: number } | null = null
+  let proposalView: 'yours' | 'proposed' = 'proposed'
+  let optimizeHandle: OptimizeHandle | null = null
+
+  function buildGhostGizmos(robot: RobotConfig): void {
+    if (ghostGizmos) {
+      ctx.scene.remove(ghostGizmos)
+      disposeObject3D(ghostGizmos)
+    }
+    ghostGizmos = new THREE.Group()
+    ghostGizmos.name = 'ghost-cameras'
+    for (const cam of robot.cameras) {
+      const g = buildCameraGizmo(GHOST_WHITE, 1.4)
+      g.traverse((c) => {
+        const mat = (c as THREE.Mesh).material as THREE.MeshLambertMaterial | undefined
+        if (mat) {
+          mat.transparent = true
+          mat.opacity = 0.55
+        }
+      })
+      g.position.set(cam.mount.x, cam.mount.y, cam.mount.z)
+      const rollQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), (cam.mount.rollDeg * Math.PI) / 180)
+      const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (cam.mount.pitchDeg * Math.PI) / 180)
+      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), (cam.mount.yawDeg * Math.PI) / 180)
+      g.quaternion.multiplyQuaternions(yawQ, pitchQ).multiply(rollQ)
+      ghostGizmos.add(g)
+    }
+    ctx.scene.add(ghostGizmos)
+  }
+
+  function clearProposal(): void {
+    proposal = null
+    if (ghostGizmos) {
+      ctx.scene.remove(ghostGizmos)
+      disposeObject3D(ghostGizmos)
+      ghostGizmos = null
+    }
+    ghostFrustums.update({ x: 0, y: 0, headingRad: 0 }, { ...config.robot, cameras: [] }, tagSize)
+    sweepControls.hideProposal()
+  }
 
   const viewManager = createViewManager(ctx)
   const viewSelect = createViewSelect(viewManager)
@@ -349,6 +397,8 @@ async function boot() {
     sweepControls.clearDetail()
     sweepControls.setLegendVisible(false)
     sweepControls.setScore(null)
+    sweepControls.setOptimizeEnabled(false)
+    clearProposal()
     sweepControls.setStale(false)
     sweepControls.setReportEnabled(false)
     // A baseline's ReportStats are tied to the field it was swept on (cell
@@ -357,6 +407,16 @@ async function boot() {
     // Clear-button click (same field, e.g. re-running with new config) should
     // leave a set baseline in place for the next report's comparison.
     if (clearBaselineToo) baseline = null
+  }
+
+  function selectProposalView(which: 'yours' | 'proposed'): void {
+    proposalView = which
+    const shown = which === 'proposed' && proposal ? proposal.result : lastSweep?.result
+    if (!shown) return
+    heatmap.show(shown, sweepMode)
+    const sc = coverageScoreVsIdeal(shown)
+    sweepControls.setScore(sc ? { ...sc, idealRangeM: shown.idealRangeM } : null)
+    sweepControls.setProposalSelected(which)
   }
 
   function markSweepStaleIfNeeded(): void {
@@ -414,6 +474,12 @@ async function boot() {
     frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex(), rangeCapM())
     tagHighlights.update(ev, config.robot, idealIds)
     hud.update(ev, config.robot, idealIds.length)
+
+    if (proposal && ghostGizmos) {
+      ghostGizmos.position.copy(robotGroup.position)
+      ghostGizmos.rotation.z = robotGroup.rotation.z
+      ghostFrustums.update(drive.pose, proposal.robot, tagSize, null, rangeCapM())
+    }
   })
 
   const sweepControls = createSweepControls({
@@ -455,6 +521,7 @@ async function boot() {
           ;(window as any).__sim.lastSweep = lastSweep
           sweepControls.setStale(false)
           sweepControls.setReportEnabled(true)
+          sweepControls.setOptimizeEnabled(true)
         })
         .catch((e: unknown) => {
           showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -473,7 +540,8 @@ async function boot() {
     onModeChange(mode) {
       sweepMode = mode
       // Re-color only from the stored result — no re-sweep.
-      if (lastSweep) heatmap.show(lastSweep.result, sweepMode)
+      const shown = proposalView === 'proposed' && proposal ? proposal.result : lastSweep?.result
+      if (shown) heatmap.show(shown, sweepMode)
     },
     onClear() {
       clearSweep()
@@ -489,6 +557,88 @@ async function boot() {
       const stats = computeReportStats(lastSweep.result, lastSweep.config.robot, lastSweep.allTagIds)
       baseline = { label: 'Baseline', stats }
       showToast('Baseline set from the current sweep.')
+    },
+    onOptimize() {
+      if (!lastSweep || optimizeHandle || config.robot.cameras.length === 0) return
+      clearProposal()
+      const coarse = { cellSizeM: 0.5, headingCount: 8, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
+      sweepControls.setOptimizing('Optimizing…')
+      const myGeneration = sweepGeneration
+      optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
+        sweepControls.setOptimizing(`Optimizing… ${Math.round((100 * p.evals) / p.totalEvals)}% · best ${p.bestScore.toFixed(0)}`)
+      })
+      optimizeHandle.promise
+        .then(async (res) => {
+          const proposalRobot: RobotConfig = { ...structuredClone(config.robot), cameras: res.cameras }
+          sweepControls.setOptimizing('Scoring proposal…')
+          const full = await sweepInWorker(
+            layout,
+            proposalRobot,
+            fieldOccluders,
+            { ...DEFAULT_SWEEP, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() },
+            () => {},
+          )
+          // Field changed / cleared mid-optimize: the proposal no longer applies.
+          if (sweepGeneration !== myGeneration || !lastSweep) return
+          const sc = coverageScoreVsIdeal(full)
+          proposal = { robot: proposalRobot, result: full, score: sc?.worstPct ?? 0 }
+          buildGhostGizmos(proposalRobot)
+          const yours = coverageScoreVsIdeal(lastSweep.result)?.worstPct ?? 0
+          sweepControls.showProposal({ yoursPct: yours, proposedPct: proposal.score })
+          selectProposalView('proposed')
+        })
+        .catch((e: unknown) => {
+          if (e instanceof Error && e.message === 'cancelled') return
+          showToast(`Optimize failed: ${e instanceof Error ? e.message : String(e)}`)
+        })
+        .finally(() => {
+          optimizeHandle = null
+          sweepControls.setOptimizing(null)
+        })
+    },
+    onCancelOptimize() {
+      optimizeHandle?.cancel()
+    },
+    onProposalSelect(which) {
+      selectProposalView(which)
+    },
+    onProposalApply() {
+      if (!proposal || !lastSweep) return
+      const prevCameras = structuredClone(config.robot.cameras)
+      config.robot.cameras = structuredClone(proposal.robot.cameras)
+      saveConfig(config)
+      panel.refresh(config)
+      rebuildRobot()
+      editor.rebuildRobot()
+      viewSelect.refresh(config.robot.cameras.map((c) => c.name))
+      // The proposal's full-res sweep IS the fresh sweep of the new config.
+      lastSweep = {
+        result: proposal.result,
+        config: structuredClone(config),
+        fieldOccludersEmpty: fieldOccluders.length === 0,
+        allTagIds: layout.tags.map((t) => t.id),
+      }
+      heatmap.show(lastSweep.result, sweepMode)
+      const sc = coverageScoreVsIdeal(lastSweep.result)
+      sweepControls.setScore(sc ? { ...sc, idealRangeM: lastSweep.result.idealRangeM } : null)
+      sweepControls.setStale(false)
+      clearProposal()
+      showToast('Applied optimized camera mounts.', 10000, undefined, {
+        label: 'Undo',
+        onClick() {
+          config.robot.cameras = prevCameras
+          saveConfig(config)
+          panel.refresh(config)
+          rebuildRobot()
+          editor.rebuildRobot()
+          viewSelect.refresh(config.robot.cameras.map((c) => c.name))
+          sweepControls.setStale(true) // shown sweep no longer matches the reverted config
+        },
+      })
+    },
+    onProposalDiscard() {
+      clearProposal()
+      if (lastSweep) heatmap.show(lastSweep.result, sweepMode)
     },
   })
   app.appendChild(sweepControls.el)

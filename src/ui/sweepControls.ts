@@ -89,6 +89,11 @@ export interface SweepControlsOptions {
   onClear(): void
   onReport(): void
   onSetBaseline(): void
+  onOptimize(): void
+  onCancelOptimize(): void
+  onProposalSelect(which: 'yours' | 'proposed'): void
+  onProposalApply(): void
+  onProposalDiscard(): void
 }
 
 export interface SweepControlsHandle {
@@ -110,6 +115,14 @@ export interface SweepControlsHandle {
   setScore(score: { worstPct: number; idealRangeM: number } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
+  /** Enables/disables the Optimize button (requires a completed sweep). */
+  setOptimizeEnabled(enabled: boolean): void
+  /** Non-null text puts the bar into optimizing state (progress text + Cancel); null restores it. */
+  setOptimizing(text: string | null): void
+  /** Shows the yours-vs-proposed A/B pill with Apply/Discard. */
+  showProposal(p: { yoursPct: number; proposedPct: number }): void
+  setProposalSelected(which: 'yours' | 'proposed'): void
+  hideProposal(): void
 }
 
 function bandLabel(band: ReturnType<typeof countBand>): string {
@@ -234,6 +247,42 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   baselineBtn.addEventListener('click', () => opts.onSetBaseline())
   bar.appendChild(baselineBtn)
 
+  const optimizeBtn = document.createElement('button')
+  optimizeBtn.textContent = '✨ Optimize'
+  optimizeBtn.title = 'Search your robot surfaces for better mounts for the SAME cameras (count and optics fixed). Requires a completed sweep.'
+  optimizeBtn.disabled = true
+  optimizeBtn.addEventListener('click', () => opts.onOptimize())
+  bar.appendChild(optimizeBtn)
+
+  const optimizeStatus = document.createElement('span')
+  optimizeStatus.className = 'optimize-status'
+  optimizeStatus.style.display = 'none'
+  bar.appendChild(optimizeStatus)
+
+  const cancelOptimizeBtn = document.createElement('button')
+  cancelOptimizeBtn.textContent = 'Cancel'
+  cancelOptimizeBtn.style.display = 'none'
+  cancelOptimizeBtn.addEventListener('click', () => opts.onCancelOptimize())
+  bar.appendChild(cancelOptimizeBtn)
+
+  // Yours-vs-proposed A/B pill.
+  const proposalWrap = document.createElement('span')
+  proposalWrap.className = 'proposal-pill'
+  proposalWrap.style.display = 'none'
+  const yoursBtn = document.createElement('button')
+  const proposedBtn = document.createElement('button')
+  yoursBtn.addEventListener('click', () => opts.onProposalSelect('yours'))
+  proposedBtn.addEventListener('click', () => opts.onProposalSelect('proposed'))
+  const applyBtn = document.createElement('button')
+  applyBtn.textContent = '✔ Apply'
+  applyBtn.className = 'proposal-apply'
+  applyBtn.addEventListener('click', () => opts.onProposalApply())
+  const discardBtn = document.createElement('button')
+  discardBtn.textContent = '✕ Discard'
+  discardBtn.addEventListener('click', () => opts.onProposalDiscard())
+  proposalWrap.append(yoursBtn, proposedBtn, applyBtn, discardBtn)
+  bar.appendChild(proposalWrap)
+
   const staleNote = document.createElement('span')
   staleNote.className = 'sweep-stale-note'
   staleNote.textContent = 'Config changed since last sweep — results may be stale.'
@@ -329,6 +378,28 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       }
       scoreEl.style.display = ''
       scoreEl.textContent = `Score vs ideal@${score.idealRangeM.toFixed(1)}m: ${score.worstPct.toFixed(0)} / 100`
+    },
+    setOptimizeEnabled(enabled) {
+      optimizeBtn.disabled = !enabled
+    },
+    setOptimizing(text) {
+      optimizeStatus.style.display = text ? '' : 'none'
+      optimizeStatus.textContent = text ?? ''
+      cancelOptimizeBtn.style.display = text ? '' : 'none'
+      optimizeBtn.disabled = text !== null
+      runBtn.disabled = text !== null
+    },
+    showProposal(p) {
+      proposalWrap.style.display = ''
+      yoursBtn.textContent = `Yours ${p.yoursPct.toFixed(0)}`
+      proposedBtn.textContent = `Proposed ${p.proposedPct.toFixed(0)}`
+    },
+    setProposalSelected(which) {
+      yoursBtn.classList.toggle('active', which === 'yours')
+      proposedBtn.classList.toggle('active', which === 'proposed')
+    },
+    hideProposal() {
+      proposalWrap.style.display = 'none'
     },
     setReportEnabled(enabled) {
       reportBtn.disabled = !enabled

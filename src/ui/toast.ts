@@ -35,7 +35,12 @@ const keyedToasts = new Map<string, HTMLElement>()
  * `dismissToast(key)` to clear a keyed toast without showing a new one
  * (e.g. once a later model load succeeds).
  */
-export function showToast(message: string, durationMs = DEFAULT_DURATION_MS, key?: string): void {
+export function showToast(
+  message: string,
+  durationMs = DEFAULT_DURATION_MS,
+  key?: string,
+  action?: { label: string; onClick(): void },
+): void {
   if (key) takeKeyed(keyedToasts, key)?.remove()
 
   const el = document.createElement('div')
@@ -45,6 +50,17 @@ export function showToast(message: string, durationMs = DEFAULT_DURATION_MS, key
   el.appendChild(text)
   document.body.appendChild(el)
   if (key) keyedToasts.set(key, el)
+  if (action) {
+    const btn = document.createElement('button')
+    btn.className = 'toast-action'
+    btn.textContent = action.label
+    btn.onclick = () => {
+      action.onClick()
+      el.remove()
+      if (key && keyedToasts.get(key) === el) keyedToasts.delete(key)
+    }
+    el.appendChild(btn)
+  }
 
   const cleanup = () => {
     el.remove()
