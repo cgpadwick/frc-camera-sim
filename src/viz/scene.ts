@@ -47,7 +47,10 @@ export function createScene(container: HTMLElement): SceneCtx {
     const dt = (now - last) / 1000
     last = now
     for (const cb of callbacks) cb(dt)
-    controls.update()
+    // OrbitControls.update() repositions the camera from its own spherical
+    // state even when .enabled is false — skip it entirely in camera-POV
+    // view modes or it would clobber the pose set by viewModes.update().
+    if (controls.enabled) controls.update()
     renderer.render(scene, camera)
   })
   return { scene, camera, renderer, controls, onFrame: (cb) => callbacks.push(cb) }

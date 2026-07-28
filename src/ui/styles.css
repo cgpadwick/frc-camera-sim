@@ -241,3 +241,30 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   margin: 0;
   padding-left: 18px;
 }
+
+.view-select {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-family: monospace;
+  font-size: 13px;
+  color: #eee;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 8px 12px;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.view-select select {
+  font-family: monospace;
+  font-size: 13px;
+  background: #22262e;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 3px 6px;
+}

@@ -15,6 +15,8 @@ import { createConfigPanel } from './ui/configPanel'
 import { loadConfig, saveConfig, occluderUrlForYear } from './ui/configStore'
 import { showToast, dismissToast } from './ui/toast'
 import { createHeatmapView } from './viz/heatmapView'
+import { createViewManager } from './viz/viewModes'
+import { createViewSelect } from './ui/viewSelect'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
 import { sweepInWorker } from './workers/sweepClient'
 import { DEFAULT_SWEEP } from './core/sweep'
@@ -113,6 +115,15 @@ async function boot() {
   const hud = createHud(app)
   const heatmap = createHeatmapView(ctx.scene)
 
+  const viewManager = createViewManager(ctx)
+  const viewSelect = createViewSelect(viewManager)
+  viewSelect.refresh(config.robot.cameras.map((c) => c.name))
+  app.appendChild(viewSelect.el)
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat || e.target !== document.body) return
+    if (e.key.toLowerCase() === 'v') viewManager.cycle()
+  })
+
   // Coverage sweep state. `lastSweep` is the source of truth for both the
   // shown heatmap and cell inspection; it's cleared whenever it would no
   // longer be valid (field change) and flagged stale (not cleared — cheap
@@ -201,7 +212,8 @@ async function boot() {
     robotGroup.rotation.z = drive.pose.headingRad
 
     const ev = evaluatePose(drive.pose, config.robot, layout, fieldOccluders)
-    frustumView.update(drive.pose, config.robot, tagSize)
+    viewManager.update(drive.pose, config.robot)
+    frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex())
     tagHighlights.update(ev, config.robot)
     hud.update(ev, config.robot)
   })
@@ -314,6 +326,7 @@ async function boot() {
       config = { ...newConfig, fieldYear: config.fieldYear }
       saveConfig(config)
       rebuildRobot()
+      viewSelect.refresh(config.robot.cameras.map((c) => c.name))
       markSweepStaleIfNeeded()
     },
     onFieldChange(year) {
