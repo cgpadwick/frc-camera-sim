@@ -729,3 +729,52 @@ button:disabled {
 .slider-number {
   width: 4.5em;
 }
+
+/* --- Phase C: workflow stepper --- */
+
+.stepper {
+  align-items: center;
+}
+
+.step-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #6a7385;
+  font-size: 12px;
+  color: #ccc;
+}
+
+.step-btn.active .step-num {
+  background: #4fc3f7;
+  border-color: #4fc3f7;
+  color: #10141a;
+}
+
+.step-check {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.step-arrow {
+  color: #6a7385;
+  font-size: 13px;
+}
+
+@keyframes optimize-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 195, 247, 0); }
+  50% { box-shadow: 0 0 0 6px rgba(79, 195, 247, 0.45); }
+}
+
+.pulse {
+  animation: optimize-pulse 0.7s ease-in-out 3;
+}

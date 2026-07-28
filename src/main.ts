@@ -150,6 +150,7 @@ async function boot() {
     sweepControls.hideProposal()
     // An outcome line referencing a discarded proposal would be stale.
     sweepControls.setOptimizeOutcome(null)
+    refreshWorkflowState()
   }
 
   const viewManager = createViewManager(ctx)
@@ -258,6 +259,7 @@ async function boot() {
     rebuildRobot()
     viewSelect.refresh(config.robot.cameras.map((c) => c.name))
     markSweepStaleIfNeeded()
+    refreshWorkflowState()
   }
 
   const editor = createRobotEditor(ctx, {
@@ -378,6 +380,9 @@ async function boot() {
       panel.setMode(mode)
     },
     onAddCamera: () => editor.armAddCamera(),
+    onOptimizeSpotlight() {
+      sweepControls.pulseOptimize()
+    },
     onToggleFrustums: (visible) => setFrustumsVisible(visible),
     onFrustumOpacity(opacity) {
       frustumView.setFillOpacity(opacity)
@@ -447,6 +452,7 @@ async function boot() {
     sweepControls.setPrimaryAction('run')
     ctx.renderer.domElement.style.cursor = ''
     clearProposal()
+    refreshWorkflowState()
     sweepControls.setStale(false)
     sweepControls.setReportEnabled(false)
     // A baseline's ReportStats are tied to the field it was swept on (cell
@@ -579,6 +585,7 @@ async function boot() {
           sweepControls.setOptimizeEnabled(true)
           sweepControls.setPrimaryAction('optimize')
           ctx.renderer.domElement.style.cursor = 'crosshair'
+          refreshWorkflowState()
           showInspectMark(sweepControls.el)
         })
         .catch((e: unknown) => {
@@ -623,6 +630,7 @@ async function boot() {
       // 16 headings = the same worst-case standard the final score uses; coarser cells only.
       const coarse = { cellSizeM: 0.5, headingCount: 16, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
       sweepControls.setOptimizing('Optimizing…')
+      refreshWorkflowState()
       const myGeneration = sweepGeneration
       optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
         sweepControls.setOptimizing(`Optimizing… ${p.evals.toLocaleString()}/${p.totalEvals.toLocaleString()} mounts (${Math.round((100 * p.evals) / p.totalEvals)}%) · best ≈${p.bestWorstPct.toFixed(0)}`)
@@ -668,6 +676,7 @@ async function boot() {
         .finally(() => {
           optimizeHandle = null
           sweepControls.setOptimizing(null)
+          refreshWorkflowState()
         })
     },
     onCancelOptimize() {
@@ -717,8 +726,19 @@ async function boot() {
   })
   app.appendChild(sweepControls.el)
   sweepControls.setPrimaryAction('run')
+
+  /** Stepper ✓s + current-step highlight follow app state. */
+  function refreshWorkflowState(): void {
+    tabs.setWorkflowState({
+      cameraCount: config.robot.cameras.length,
+      hasSweep: lastSweep !== null,
+      optimizeActive: optimizeHandle !== null || proposal !== null,
+    })
+  }
+  refreshWorkflowState()
+
   showFirstRunMarks({
-    robotTab: tabs.el.children[1] as HTMLElement,
+    robotTab: tabs.stepButton(1),
     analyzeBtn: sweepControls.el.querySelector('button') as HTMLElement,
   })
 
@@ -784,6 +804,7 @@ async function boot() {
       editor.rebuildRobot()
       viewSelect.refresh(config.robot.cameras.map((c) => c.name))
       markSweepStaleIfNeeded()
+      refreshWorkflowState()
     },
     onFieldChange(year) {
       // config.fieldYear is only mutated + persisted inside rebuildField,

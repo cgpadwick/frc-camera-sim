@@ -119,6 +119,8 @@ export interface SweepControlsHandle {
   setReportEnabled(enabled: boolean): void
   /** Which button carries the accent color: exactly one loud action per state. */
   setPrimaryAction(which: 'run' | 'optimize'): void
+  /** Brief attention pulse on the optimize controls (stepper step-3 spotlight). */
+  pulseOptimize(): void
   /** Enables/disables the Optimize button (requires a completed sweep). */
   setOptimizeEnabled(enabled: boolean): void
   /** Non-null text puts the bar into optimizing state (progress text + Cancel); null restores it. */
@@ -437,6 +439,12 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       scoreEl.style.display = ''
       scoreEl.textContent = `Coverage score: ${score.worstPct.toFixed(0)}/100`
       scoreEl.title = `vs. an ideal omnidirectional setup at your ${score.idealRangeM.toFixed(1)} m tag range`
+    },
+    pulseOptimize() {
+      optimizeBtn.classList.remove('pulse')
+      void optimizeBtn.offsetWidth // restart the animation
+      optimizeBtn.classList.add('pulse')
+      setTimeout(() => optimizeBtn.classList.remove('pulse'), 2100)
     },
     setPrimaryAction(which) {
       runBtn.classList.toggle('btn-primary', which === 'run')
