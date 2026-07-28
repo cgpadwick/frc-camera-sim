@@ -275,6 +275,7 @@ async function boot() {
         el.style.display = mode === 'robot' ? 'none' : ''
       }
       editorHints.style.display = mode === 'robot' ? '' : 'none'
+      panel.setMode(mode)
     },
     onAddCamera: () => editor.armAddCamera(),
     onToggleFrustums: (visible) => setFrustumsVisible(visible),

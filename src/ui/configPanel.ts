@@ -109,6 +109,8 @@ function textField(labelText: string, value: string, onInput: (v: string) => voi
  */
 export interface ConfigPanel {
   el: HTMLElement
+  /** Show field-only sections (Field tab) or robot sections (Robot tab). */
+  setMode(mode: 'field' | 'robot'): void
   /** Replace the working copy with `config` (authoritative, from main.ts) and re-render — e.g. after the robot editor moves a camera. */
   refresh(config: SimConfig): void
   /** Scroll the camera's section into view and mark it selected (null clears). */
@@ -146,11 +148,17 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     camWarningEl.textContent = warnings.join(' ')
   }
 
+  // Which tab the app is on decides the visible sections: field selection
+  // belongs to the Field view; robot dims/boxes/cameras belong to the Robot
+  // editor. Import/Export shows in both.
+  let panelMode: 'field' | 'robot' = 'field'
+
   function renderPanel(): void {
     // Keep the collapse toggle: replaceChildren() rebuilds the whole panel,
     // and the toggle lives inside root so the .collapsed CSS can scope it.
     root.replaceChildren(toggle)
 
+    if (panelMode === 'field') {
     // --- Field year ---
     root.appendChild(heading('Field'))
     const fieldSelect = document.createElement('select')
@@ -166,7 +174,9 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
       opts.onFieldChange(fieldSelect.value)
     })
     root.appendChild(fieldSelect)
+    }
 
+    if (panelMode === 'robot') {
     // --- Robot ---
     root.appendChild(heading('Robot'))
     root.appendChild(
@@ -391,6 +401,7 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
       }),
     )
     updateCamWarning()
+    }
 
     // --- Import / Export ---
     root.appendChild(heading('Import / Export'))
@@ -422,6 +433,11 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
   renderPanel()
   return {
     el: root,
+    setMode(mode) {
+      if (mode === panelMode) return
+      panelMode = mode
+      renderPanel()
+    },
     refresh(config) {
       working = structuredClone(config)
       renderPanel()
