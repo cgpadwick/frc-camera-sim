@@ -19,37 +19,39 @@ function hue({ r, g, b }: RGB): number {
 }
 
 describe('countToColor', () => {
-  it('0 -> exact #d32f2f', () => {
-    expect(countToColor(0)).toEqual({ r: 211, g: 47, b: 47 })
+  it('0 -> exact #c62828 (blind red)', () => {
+    expect(countToColor(0)).toEqual({ r: 198, g: 40, b: 40 })
   })
-  it('negative scores clamp to the same exact red as 0', () => {
-    expect(countToColor(-5)).toEqual({ r: 211, g: 47, b: 47 })
+  it('negative counts clamp to the same exact red as 0', () => {
+    expect(countToColor(-5)).toEqual({ r: 198, g: 40, b: 40 })
   })
-  it('1 tag -> exact orange (#ff9800)', () => {
-    expect(countToColor(1)).toEqual({ r: 255, g: 152, b: 0 })
+  it('1 tag -> exact light blue (#a8d9f2)', () => {
+    expect(countToColor(1)).toEqual({ r: 168, g: 217, b: 242 })
   })
-  it('3 tags -> exact yellow-green (#cddc39)', () => {
-    expect(countToColor(3)).toEqual({ r: 205, g: 220, b: 57 })
+  it('3 tags -> exact mid-dark blue (#1a6fae)', () => {
+    expect(countToColor(3)).toEqual({ r: 26, g: 111, b: 174 })
   })
-  it('4+ tags -> exact green (#4caf50)', () => {
-    expect(countToColor(4)).toEqual({ r: 76, g: 175, b: 80 })
-    expect(countToColor(9)).toEqual({ r: 76, g: 175, b: 80 })
+  it('4+ tags -> exact navy (#062f52)', () => {
+    expect(countToColor(4)).toEqual({ r: 6, g: 47, b: 82 })
+    expect(countToColor(9)).toEqual({ r: 6, g: 47, b: 82 })
   })
-  it('scores above 100 clamp to the same exact green as 100', () => {
-    expect(countToColor(150)).toEqual({ r: 76, g: 175, b: 80 })
+  it('counts far above 4 clamp to the same exact navy as 4', () => {
+    expect(countToColor(150)).toEqual({ r: 6, g: 47, b: 82 })
   })
-  it('hue increases monotonically from red (0) to green (100) with no dips', () => {
-    let prevHue = hue(countToColor(0))
-    for (let s = 0.5; s <= 100; s += 0.5) {
-      const h = hue(countToColor(s))
-      expect(h).toBeGreaterThanOrEqual(prevHue - 1e-9)
-      prevHue = h
+  it('blue ramp darkens monotonically from 1 to 4+ (sequential lightness)', () => {
+    // Sequential = one hue, light -> dark: channel sum strictly decreases.
+    const luma = (c: { r: number; g: number; b: number }) => c.r + c.g + c.b
+    let prev = luma(countToColor(1))
+    for (let n = 1.5; n <= 4.5; n += 0.5) {
+      const l = luma(countToColor(n))
+      expect(l).toBeLessThanOrEqual(prev + 1e-9)
+      prev = l
     }
   })
-  it('fractional counts lerp between adjacent stops (mid red->orange)', () => {
+  it('fractional counts lerp between adjacent stops (mid red->light blue)', () => {
     const c = countToColor(0.5)
-    expect(c.r).toBeGreaterThan(211) // moving from red toward orange, r increases (0xd3 -> 0xff)
-    expect(c.g).toBeGreaterThan(47) // g increases (0x2f -> 0x98)
+    expect(c.r).toBeLessThan(198) // red channel falls toward the blue stop
+    expect(c.b).toBeGreaterThan(40) // blue channel rises
   })
 })
 

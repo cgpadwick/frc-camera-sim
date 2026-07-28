@@ -2,6 +2,7 @@ import type { RobotConfig, TagLayout, OccluderBox } from '../core/types'
 import type { SweepResult } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
 import { countBand } from '../core/evaluate'
+import { COUNT_STOPS } from '../viz/heatmapView'
 
 export type SweepViewMode = 'min' | 'avg' | 'ideal'
 import { evaluatePose } from '../core/evaluate'
@@ -100,6 +101,8 @@ export interface SweepControlsHandle {
   clearDetail(): void
   /** Shows/hides a "results may be stale" note (config or field changed since the last sweep). */
   setStale(stale: boolean): void
+  /** Show/hide the heatmap color legend (visible only while a sweep is displayed). */
+  setLegendVisible(visible: boolean): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
 }
@@ -160,6 +163,21 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   })
   idealLabel.append(document.createTextNode('Ideal range (m)'), idealRangeInput)
   bar.appendChild(idealLabel)
+
+  const legend = document.createElement('div')
+  legend.className = 'sweep-legend'
+  legend.style.display = 'none'
+  const LEGEND_LABELS = ['0 (blind)', '1 tag', '2 tags', '3 tags', '4+ tags']
+  COUNT_STOPS.forEach((hex, i) => {
+    const item = document.createElement('span')
+    item.className = 'sweep-legend-item'
+    const swatch = document.createElement('span')
+    swatch.className = 'sweep-legend-swatch'
+    swatch.style.background = hex
+    item.append(swatch, document.createTextNode(LEGEND_LABELS[i]))
+    legend.appendChild(item)
+  })
+  bar.appendChild(legend)
 
   const progress = document.createElement('progress')
   progress.max = 1
@@ -258,6 +276,9 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     },
     setStale(stale) {
       staleNote.style.display = stale ? '' : 'none'
+    },
+    setLegendVisible(visible) {
+      legend.style.display = visible ? '' : 'none'
     },
     setReportEnabled(enabled) {
       reportBtn.disabled = !enabled

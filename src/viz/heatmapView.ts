@@ -12,13 +12,17 @@ export interface RGB {
   b: number
 }
 
-// Color stops per visible-tag count (0-255 channels). Boundaries match
-// core/evaluate.ts countBand: 0 dead, 1 poor, 2 ok, 3+ strong.
-const RED: RGB = { r: 0xd3, g: 0x2f, b: 0x2f } // #d32f2f - 0 tags (blind)
-const ORANGE: RGB = { r: 0xff, g: 0x98, b: 0x00 } // #ff9800 - 1 tag (ambiguous)
-const YELLOW: RGB = { r: 0xff, g: 0xeb, b: 0x3b } // #ffeb3b - 2 tags
-const YELLOW_GREEN: RGB = { r: 0xcd, g: 0xdc, b: 0x39 } // #cddc39 - 3 tags
-const GREEN: RGB = { r: 0x4c, g: 0xaf, b: 0x50 } // #4caf50 - 4+ tags
+// Color stops per visible-tag count. Red = status flag for "blind";
+// counts 1..4+ ride a single-hue blue ramp, light -> dark (sequential =
+// magnitude). Steps validated CVD-safe (adjacent dE >= 15, dataviz
+// validator) and explained by the on-screen legend.
+export const COUNT_STOPS = ['#c62828', '#a8d9f2', '#54a8da', '#1a6fae', '#062f52'] as const
+const hexToRgb = (hex: string): RGB => ({
+  r: parseInt(hex.slice(1, 3), 16),
+  g: parseInt(hex.slice(3, 5), 16),
+  b: parseInt(hex.slice(5, 7), 16),
+})
+const STOPS: RGB[] = COUNT_STOPS.map(hexToRgb)
 
 function lerpRgb(a: RGB, b: RGB, t: number): RGB {
   return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t }
@@ -26,16 +30,14 @@ function lerpRgb(a: RGB, b: RGB, t: number): RGB {
 
 /**
  * Pure: visible-tag count -> heatmap cell color. Integer counts land on
- * exact stops (0 red, 1 orange, 2 yellow, 3 yellow-green, 4+ green);
- * fractional values (the avg-over-headings mode) lerp between adjacent
- * stops so e.g. 1.5 reads halfway orange->yellow.
+ * exact stops (0 red-blind, then light->dark blue for 1/2/3/4+);
+ * fractional values (avg mode) lerp between adjacent stops.
  */
 export function countToColor(count: number): RGB {
-  if (count <= 0) return RED
-  if (count < 1) return lerpRgb(RED, ORANGE, count)
-  if (count < 2) return lerpRgb(ORANGE, YELLOW, count - 1)
-  if (count < 3) return lerpRgb(YELLOW, YELLOW_GREEN, count - 2)
-  return lerpRgb(YELLOW_GREEN, GREEN, Math.min(1, count - 3))
+  if (count <= 0) return STOPS[0]
+  const i = Math.min(3, Math.floor(count))
+  const upper = Math.min(4, i + 1)
+  return lerpRgb(STOPS[i], STOPS[upper], Math.min(1, count - i))
 }
 
 /**
@@ -113,7 +115,7 @@ export function createHeatmapView(scene: THREE.Scene): HeatmapView {
       texture.minFilter = THREE.NearestFilter
       texture.needsUpdate = true
       const geometry = new THREE.PlaneGeometry(width, height)
-      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.85, side: THREE.DoubleSide })
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.92, side: THREE.DoubleSide })
       mesh = new THREE.Mesh(geometry, material)
       mesh.name = 'heatmap'
       mesh.position.set(width / 2, height / 2, HEATMAP_Z)

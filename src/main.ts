@@ -331,6 +331,7 @@ async function boot() {
     heatmap.hide()
     lastSweep = null
     sweepControls.clearDetail()
+    sweepControls.setLegendVisible(false)
     sweepControls.setStale(false)
     sweepControls.setReportEnabled(false)
     // A baseline's ReportStats are tied to the field it was swept on (cell
@@ -421,6 +422,7 @@ async function boot() {
           // the current field/state, so it's silently dropped.
           if (sweepGeneration !== myGeneration) return
           heatmap.show(result, sweepMode)
+          sweepControls.setLegendVisible(true)
           lastSweep = {
             result,
             config: snapshot,
