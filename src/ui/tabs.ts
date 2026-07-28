@@ -3,6 +3,8 @@ export type AppMode = 'field' | 'robot'
 export interface TabBar {
   el: HTMLElement
   current(): AppMode
+  /** Sync the 👁 button when frustum visibility is toggled externally (F key). */
+  setFrustumsVisible(visible: boolean): void
 }
 
 /** Field / Robot mode tabs (top-left). Robot mode also shows an "add camera" button. */
@@ -53,16 +55,19 @@ export function createTabBar(opts: {
   addBoxBtn.addEventListener('click', opts.onAddBox)
   el.appendChild(addBoxBtn)
 
-  frustumBtn.textContent = '👁 Frustums'
-  frustumBtn.title = 'Show/hide camera view cones while editing'
+  frustumBtn.textContent = '👁 Frustums (F)'
+  frustumBtn.title = 'Show/hide camera view cones (F key works everywhere)'
   frustumBtn.style.display = 'none'
   frustumBtn.classList.add('active')
+  const applyFrustumsVisible = (visible: boolean): void => {
+    frustumsVisible = visible
+    frustumBtn.classList.toggle('active', visible)
+  }
   frustumBtn.addEventListener('click', () => {
-    frustumsVisible = !frustumsVisible
-    frustumBtn.classList.toggle('active', frustumsVisible)
+    applyFrustumsVisible(!frustumsVisible)
     opts.onToggleFrustums(frustumsVisible)
   })
   el.appendChild(frustumBtn)
 
-  return { el, current: () => mode }
+  return { el, current: () => mode, setFrustumsVisible: applyFrustumsVisible }
 }

@@ -103,9 +103,19 @@ async function boot() {
   const viewSelect = createViewSelect(viewManager)
   viewSelect.refresh(config.robot.cameras.map((c) => c.name))
   app.appendChild(viewSelect.el)
+  // Single frustum-visibility state shared by both modes (F key + 👁 button).
+  let frustumsVisible = true
+  function setFrustumsVisible(visible: boolean): void {
+    frustumsVisible = visible
+    frustumView.setVisible(visible)
+    editor.setFrustumsVisible(visible)
+    tabs.setFrustumsVisible(visible)
+  }
+
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.target !== document.body) return
     if (e.key.toLowerCase() === 'v' && appMode === 'field') viewManager.cycle()
+    if (e.key.toLowerCase() === 'f') setFrustumsVisible(!frustumsVisible)
   })
 
   // --- Robot editor mode ---
@@ -207,7 +217,7 @@ async function boot() {
       editorHints.style.display = mode === 'robot' ? '' : 'none'
     },
     onAddCamera: () => editor.armAddCamera(),
-    onToggleFrustums: (visible) => editor.setFrustumsVisible(visible),
+    onToggleFrustums: (visible) => setFrustumsVisible(visible),
     onAddBox() {
       config.robot.superstructure.push({
         center: { x: 0, y: 0, z: config.robot.chassisHeightM + 0.15 },
