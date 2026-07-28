@@ -2,9 +2,19 @@ import type { RobotConfig, TagLayout, OccluderBox } from '../core/types'
 import type { SweepResult } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
 import { countBand } from '../core/evaluate'
+import { CAMERA_PRESETS } from './presets'
 import { COUNT_STOPS } from '../viz/heatmapView'
 
 export type SweepViewMode = 'min' | 'ideal'
+
+/** What the user asked the optimizer to do (QA: refine vs fresh-layout). */
+export interface OptimizeUiOptions {
+  mode: 'refine' | 'fresh'
+  /** Fresh mode only: how many cameras to place. */
+  cameraCount: number
+  /** Fresh mode only: preset label for the cameras' optics. */
+  presetLabel: string
+}
 import { evaluatePose } from '../core/evaluate'
 import { BAND_COLORS } from './hud'
 
@@ -89,7 +99,7 @@ export interface SweepControlsOptions {
   onClear(): void
   onReport(): void
   onSetBaseline(): void
-  onOptimize(): void
+  onOptimize(options: OptimizeUiOptions): void
   onCancelOptimize(): void
   onProposalSelect(which: 'yours' | 'proposed'): void
   onProposalApply(): void
@@ -284,11 +294,57 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   baselineBtn.addEventListener('click', () => opts.onSetBaseline())
   bar.appendChild(baselineBtn)
 
+  // Optimize mode: refine the user's placement, or design a fresh layout
+  // with a chosen camera count + type (count/type are user inputs on
+  // purpose — the solver must never invent hardware).
+  const optModeSelect = document.createElement('select')
+  for (const [value, text] of [
+    ['refine', 'Refine my placement'],
+    ['fresh', 'Fresh layout…'],
+  ]) {
+    const o = document.createElement('option')
+    o.value = value
+    o.textContent = text
+    optModeSelect.appendChild(o)
+  }
+  optModeSelect.title = 'Refine: search around every mount, starting from your current cameras. Fresh: ignore current placement and design a layout from scratch with the camera count and type you choose.'
+  const freshCountInput = document.createElement('input')
+  freshCountInput.type = 'number'
+  freshCountInput.min = '1'
+  freshCountInput.max = '6'
+  freshCountInput.value = '4'
+  freshCountInput.style.width = '3em'
+  freshCountInput.title = 'How many cameras the fresh layout may use (1-6)'
+  freshCountInput.setAttribute('aria-label', 'Fresh layout camera count')
+  const freshPresetSelect = document.createElement('select')
+  for (const preset of CAMERA_PRESETS) {
+    if (preset.label === 'Custom') continue
+    const o = document.createElement('option')
+    o.value = preset.label
+    o.textContent = preset.label
+    freshPresetSelect.appendChild(o)
+  }
+  freshPresetSelect.title = 'Camera model for the fresh layout'
+  const freshWrap = document.createElement('span')
+  freshWrap.className = 'fresh-opts'
+  freshWrap.style.display = 'none'
+  freshWrap.append(freshCountInput, freshPresetSelect)
+  optModeSelect.addEventListener('change', () => {
+    freshWrap.style.display = optModeSelect.value === 'fresh' ? '' : 'none'
+  })
+  bar.append(optModeSelect, freshWrap)
+
   const optimizeBtn = document.createElement('button')
   optimizeBtn.textContent = '✨ Optimize'
   optimizeBtn.title = 'Run Analyze coverage first.'
   optimizeBtn.disabled = true
-  optimizeBtn.addEventListener('click', () => opts.onOptimize())
+  optimizeBtn.addEventListener('click', () =>
+    opts.onOptimize({
+      mode: optModeSelect.value as 'refine' | 'fresh',
+      cameraCount: Number(freshCountInput.value) || 4,
+      presetLabel: freshPresetSelect.value,
+    }),
+  )
   bar.appendChild(optimizeBtn)
 
   const optimizeStatus = document.createElement('span')

@@ -57,3 +57,25 @@ export function presetLabelFor(spec: CameraSpec): string {
   )
   return hit ? hit.label : CUSTOM_LABEL
 }
+
+/**
+ * Cameras for a fresh-layout optimization run: `count` copies of the chosen
+ * preset's optics (or 75° OV9281 defaults for Custom/unknown), evenly
+ * yaw-fanned at a nominal center mount. Initial mounts barely matter — the
+ * optimizer's cluster-fan and scatter seeds reposition everything — but the
+ * fan start keeps round counts stable and reproducible.
+ */
+export function freshCameras(count: number, presetLabel: string): CameraSpec[] {
+  const p = CAMERA_PRESETS.find((x) => x.label === presetLabel && x.label !== CUSTOM_LABEL)
+  const optics = p ?? { label: CUSTOM_LABEL, hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800 }
+  const n = Math.max(1, Math.min(6, Math.round(count)))
+  return Array.from({ length: n }, (_, k) => ({
+    name: `cam-${k}`,
+    hfovDeg: optics.hfovDeg,
+    vfovDeg: optics.vfovDeg,
+    resWidth: optics.resWidth,
+    resHeight: optics.resHeight,
+    maxRangeM: null,
+    mount: { x: 0, y: 0, z: 0.3, rollDeg: 0, pitchDeg: 0, yawDeg: Math.round((k * 360) / n) },
+  }))
+}

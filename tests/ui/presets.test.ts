@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CAMERA_PRESETS, applyPreset, presetLabelFor } from '../../src/ui/presets'
+import { CAMERA_PRESETS, applyPreset, presetLabelFor, freshCameras } from '../../src/ui/presets'
 import { SAMPLE_CAMERAS } from '../../src/core/defaults'
 
 describe('CAMERA_PRESETS', () => {
@@ -45,5 +45,19 @@ describe('presetLabelFor', () => {
   })
   it('falls back to Custom for unmatched optics', () => {
     expect(presetLabelFor({ ...SAMPLE_CAMERAS[0], hfovDeg: 83 })).toBe('Custom')
+  })
+})
+
+describe('freshCameras (fresh-layout optimize mode)', () => {
+  it('builds N cameras with the chosen preset optics, evenly fanned', () => {
+    const cams = freshCameras(4, 'Limelight 4')
+    expect(cams).toHaveLength(4)
+    expect(cams.every((c) => c.hfovDeg === 82 && c.vfovDeg === 56)).toBe(true)
+    expect(cams.map((c) => c.mount.yawDeg)).toEqual([0, 90, 180, 270])
+  })
+  it('clamps count to 1..6 and falls back to OV9281-75 optics for Custom', () => {
+    expect(freshCameras(0, 'Custom')).toHaveLength(1)
+    expect(freshCameras(99, 'Custom')).toHaveLength(6)
+    expect(freshCameras(2, 'Custom')[0].hfovDeg).toBe(75)
   })
 })

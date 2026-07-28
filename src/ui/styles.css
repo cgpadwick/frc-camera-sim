@@ -856,3 +856,9 @@ button:disabled {
   color: #b6c0cc;
   margin-top: 2px;
 }
+
+.fresh-opts {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}

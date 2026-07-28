@@ -24,7 +24,8 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
-import type { SweepViewMode } from './ui/sweepControls'
+import type { SweepViewMode, OptimizeUiOptions } from './ui/sweepControls'
+import { freshCameras } from './ui/presets'
 import { sweepInWorker } from './workers/sweepClient'
 import { optimizeInWorker } from './workers/optimizeClient'
 import type { OptimizeHandle } from './workers/optimizeClient'
@@ -658,20 +659,30 @@ async function boot() {
       baseline = { label: 'Baseline', stats }
       showToast('Baseline set from the current sweep.')
     },
-    onOptimize() {
-      if (!lastSweep || optimizeHandle || config.robot.cameras.length === 0) return
+    onOptimize(options: OptimizeUiOptions) {
+      if (!lastSweep || optimizeHandle) return
+      const fresh = options.mode === 'fresh'
+      if (!fresh && config.robot.cameras.length === 0) return
       clearProposal()
       sweepControls.setOptimizeOutcome(null)
+      // Fresh mode: ignore current placement — N cameras of the chosen type,
+      // repositioned entirely by the seeds/search. Refine: start from yours.
+      const searchRobot: RobotConfig = fresh
+        ? { ...structuredClone(config.robot), cameras: freshCameras(options.cameraCount, options.presetLabel) }
+        : structuredClone(config.robot)
       // 16 headings = the same worst-case standard the final score uses; coarser cells only.
       const coarse = { cellSizeM: 0.5, headingCount: 16, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
       sweepControls.setOptimizing('Optimizing…')
       const myGeneration = sweepGeneration
-      optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
+      optimizeHandle = optimizeInWorker(searchRobot, layout, fieldOccluders, coarse, [], (p) => {
         sweepControls.setOptimizing(`Optimizing… ${p.evals.toLocaleString()}/${p.totalEvals.toLocaleString()} mounts (${Math.round((100 * p.evals) / p.totalEvals)}%) · best ≈${p.bestWorstPct.toFixed(0)}`)
       })
       optimizeHandle.promise
         .then(async (res) => {
+          // Fresh mode always proposes (comparing to the throwaway seed
+          // mounts would be meaningless); refine keeps the identity path.
           const identical =
+            !fresh &&
             JSON.stringify(res.cameras.map((c) => c.mount)) === JSON.stringify(config.robot.cameras.map((c) => c.mount))
           if (identical) {
             sweepControls.setOptimizeOutcome(
