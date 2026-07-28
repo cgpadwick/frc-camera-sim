@@ -139,7 +139,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   const handles = new THREE.Group()
   handles.name = 'camera-handles'
   scene.add(handles)
-  const frustums = createFrustumView(scene)
+  const frustums = createFrustumView(scene, { outlineFirst: true })
 
   // --- Superstructure box editing (crayon-CAD style) ---
   const tc = new TransformControls(ctx.camera, ctx.renderer.domElement)
@@ -399,7 +399,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       // Editor cones are AIM previews, not reach displays — cap the drawn
       // length so entering Build shows a robot, not a wall of translucent
       // planes (QA round 7C; the Field view keeps true capped range).
-      frustums.update(EDITOR_POSE, robot, opts.getTagSize(), null, EDITOR_CONE_PREVIEW_M)
+      frustums.update(EDITOR_POSE, robot, opts.getTagSize(), null, EDITOR_CONE_PREVIEW_M, selectedIndex)
     },
     setActive(active) {
       if (active) {
@@ -444,6 +444,9 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     setFrustumsVisible: (v) => frustums.setVisible(v),
     setFrustumFillOpacity: (o) => frustums.setFillOpacity(o),
     armAddCamera() {
+      // Deselect first: an attached gizmo eats the placement click (7b fix 3).
+      selectBox(null)
+      select(null)
       addArmed = true
       el().style.cursor = 'crosshair'
       updateHint()

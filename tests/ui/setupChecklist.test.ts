@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeChecklist } from '../../src/ui/setupChecklist'
+import { computeChecklist, diffRobotEdits } from '../../src/ui/setupChecklist'
 import type { SetupState } from '../../src/ui/setupChecklist'
 
 const state = (over: Partial<SetupState> = {}): SetupState => ({
@@ -44,5 +44,23 @@ describe('computeChecklist', () => {
     const s = computeChecklist(state({ bodyShapeTouched: true, cameraCount: 1, cameraAimed: true, hasSweep: true }))
     expect(s.allDone).toBe(true)
     expect(s.rows.every((r) => !r.active)).toBe(true)
+  })
+})
+
+describe('diffRobotEdits (7b fix 1: panel edits count)', () => {
+  const robot = (sz: number, camPitch: number) => ({
+    superstructure: [{ center: { x: 0, y: 0, z: 0.5 }, size: { x: 0.3, y: 0.3, z: sz }, yawDeg: 0 }],
+    cameras: [{ name: 'c', mount: { pitchDeg: camPitch } }],
+  })
+  it('panel box size edit flags boxesChanged only', () => {
+    const d = diffRobotEdits(robot(0.8, 0), robot(0.7, 0))
+    expect(d).toEqual({ boxesChanged: true, camerasChanged: false })
+  })
+  it('camera edit flags camerasChanged only', () => {
+    const d = diffRobotEdits(robot(0.8, 0), robot(0.8, -15))
+    expect(d).toEqual({ boxesChanged: false, camerasChanged: true })
+  })
+  it('no edit flags nothing', () => {
+    expect(diffRobotEdits(robot(0.8, 0), robot(0.8, 0))).toEqual({ boxesChanged: false, camerasChanged: false })
   })
 })

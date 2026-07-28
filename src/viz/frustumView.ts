@@ -126,8 +126,8 @@ function writeFillPositions(out: Float32Array, dirs: Vec3Like[], range: number):
 }
 
 export interface FrustumView {
-  /** `hiddenIndex`: camera whose wireframe is hidden this frame (POV view renders from inside it). `rangeCapM`: trusted-range cap - cones never draw past it. */
-  update(robotPose: RobotPose, robot: RobotConfig, tagSize: number, hiddenIndex?: number | null, rangeCapM?: number): void
+  /** `hiddenIndex`: camera whose wireframe is hidden this frame (POV view renders from inside it). `rangeCapM`: trusted-range cap - cones never draw past it. `emphasisIndex`: outline-first mode only - this camera keeps the full fill. */
+  update(robotPose: RobotPose, robot: RobotConfig, tagSize: number, hiddenIndex?: number | null, rangeCapM?: number, emphasisIndex?: number | null): void
   /** Show/hide all frustum wireframes (robot editor declutter toggle). */
   setVisible(visible: boolean): void
   /** Opacity of the translucent volume fill (0 hides the fill, edges stay). */
@@ -135,7 +135,13 @@ export interface FrustumView {
 }
 
 /** Live wireframe camera frustums, one per configured camera, reparented under a 'frustums' group. */
-export function createFrustumView(scene: THREE.Scene, opts?: { colorOverride?: number }): FrustumView {
+/** In outline-first mode, unselected cones cap their fill at this alpha (7b fix 5). */
+const OUTLINE_FIRST_MAX_ALPHA = 0.06
+
+export function createFrustumView(
+  scene: THREE.Scene,
+  opts?: { colorOverride?: number; outlineFirst?: boolean },
+): FrustumView {
   const root = new THREE.Group()
   root.name = 'frustums'
   scene.add(root)
@@ -165,11 +171,19 @@ export function createFrustumView(scene: THREE.Scene, opts?: { colorOverride?: n
         ;(entry.fill.material as THREE.MeshBasicMaterial).opacity = opacity
       }
     },
-    update(robotPose, robot, tagSize, hiddenIndex = null, rangeCapM = Infinity) {
+    update(robotPose, robot, tagSize, hiddenIndex = null, rangeCapM = Infinity, emphasisIndex = null) {
       if (cameras.length !== robot.cameras.length) rebuild(robot.cameras)
       robot.cameras.forEach((spec, i) => {
         const entry = cameras[i]
         entry.group.visible = i !== hiddenIndex
+        // Outline-first (Build view): colored edges carry the aim; only the
+        // selected camera gets the full fill so mass follows meaning.
+        if (opts?.outlineFirst) {
+          const full = i === emphasisIndex
+          const alpha = full ? fillOpacity : Math.min(OUTLINE_FIRST_MAX_ALPHA, fillOpacity)
+          ;(entry.fill.material as THREE.MeshBasicMaterial).opacity = alpha
+          entry.fill.visible = alpha > 0
+        }
         const camPose = cameraFieldPose(robotPose, spec)
         entry.group.position.set(camPose.translation.x, camPose.translation.y, camPose.translation.z)
         entry.group.quaternion.set(camPose.rotation.x, camPose.rotation.y, camPose.rotation.z, camPose.rotation.w)

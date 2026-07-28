@@ -141,3 +141,18 @@ export function createSetupChecklist(): SetupChecklist {
     },
   }
 }
+
+/**
+ * Pure: which parts of the robot changed between two configs — drives the
+ * checklist's touch flags (QA round 7b fix 1: panel edits must count the
+ * same as 3D gizmo edits).
+ */
+export function diffRobotEdits(
+  prev: { superstructure: unknown[]; cameras: unknown[] },
+  next: { superstructure: unknown[]; cameras: unknown[] },
+): { boxesChanged: boolean; camerasChanged: boolean } {
+  return {
+    boxesChanged: JSON.stringify(prev.superstructure) !== JSON.stringify(next.superstructure),
+    camerasChanged: JSON.stringify(prev.cameras) !== JSON.stringify(next.cameras),
+  }
+}

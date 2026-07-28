@@ -396,7 +396,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 .box-toolbar {
   position: absolute;
   top: 56px;
-  left: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: 6px;
   z-index: 12;

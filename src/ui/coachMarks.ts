@@ -86,6 +86,7 @@ export function showInspectMark(anchor: HTMLElement): void {
   if (flagged(INSPECT_KEY)) return
   setFlag(INSPECT_KEY)
   const mark = bubble(anchor, 'Double-click any spot on the field to inspect it', true, () => mark.remove(), () => mark.remove())
+  mark.classList.add('coach-mark-inspect') // field-only: main hides it in Build
   mark.style.top = `${anchor.getBoundingClientRect().top - mark.offsetHeight - 10}px`
   setTimeout(() => mark.remove(), 15000)
 }

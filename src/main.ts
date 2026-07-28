@@ -19,7 +19,7 @@ import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
 import { createTabBar } from './ui/tabs'
 import { showFirstRunMarks, showInspectMark, firstSweepPending } from './ui/coachMarks'
-import { createSetupChecklist } from './ui/setupChecklist'
+import { createSetupChecklist, diffRobotEdits } from './ui/setupChecklist'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
@@ -401,6 +401,10 @@ async function boot() {
       editorHints.style.display = mode === 'robot' ? '' : 'none'
       setupChecklist.el.style.display = mode === 'robot' && !setupChecklist.finished() ? '' : 'none'
       if (mode === 'robot') refreshChecklist()
+      // The inspect coach mark references the field — meaningless in Build (7b fix 4).
+      for (const m of document.querySelectorAll<HTMLElement>('.coach-mark-inspect')) {
+        m.style.display = mode === 'robot' ? 'none' : ''
+      }
       // The chip's copy points AT the Robot tab — showing it while already
       // there is nonsense (QA round 5b nit 2).
       purposeChip.style.display = mode === 'robot' ? 'none' : ''
@@ -829,9 +833,10 @@ async function boot() {
       // updates on select before the async load resolves, including on a
       // load that ultimately fails), so it is intentionally *not* trusted
       // here — only the robot config is taken from panel edits.
-      const camerasChanged = JSON.stringify(newConfig.robot.cameras) !== JSON.stringify(config.robot.cameras)
+      const edits = diffRobotEdits(config.robot, newConfig.robot)
       config = { ...newConfig, fieldYear: config.fieldYear }
-      if (camerasChanged && config.robot.cameras.length > 0) cameraAimed = true
+      if (edits.camerasChanged && config.robot.cameras.length > 0) cameraAimed = true
+      if (edits.boxesChanged) bodyShapeTouched = true
       saveConfig(config)
       rebuildRobot()
       editor.rebuildRobot()
