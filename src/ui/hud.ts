@@ -36,11 +36,16 @@ export function createHud(container: HTMLElement): Hud {
   scoreEl.className = 'hud-score'
   root.appendChild(scoreEl)
 
+  const subtitleEl = document.createElement('div')
+  subtitleEl.className = 'hud-subtitle'
+  subtitleEl.textContent = 'tags visible from this spot'
+  root.appendChild(subtitleEl)
+
   const camerasEl = document.createElement('div')
   camerasEl.className = 'hud-cameras'
   root.appendChild(camerasEl)
 
-  const cameraLines: HTMLDivElement[] = []
+  const cameraLines: HTMLSpanElement[] = []
 
   return {
     el: root,
@@ -49,7 +54,10 @@ export function createHud(container: HTMLElement): Hud {
         idealCount === undefined
           ? `${ev.tagCount} ${ev.tagCount === 1 ? 'tag' : 'tags'}`
           : `${ev.tagCount} / ${idealCount} tags`
-      scoreEl.title = idealCount === undefined ? '' : 'tags seen now / ideally visible here (omnidirectional, at the Ideal range)'
+      scoreEl.title =
+        idealCount === undefined
+          ? 'AprilTags your cameras can currently see'
+          : `AprilTags your cameras can currently see (${ev.tagCount} of ${idealCount} theoretically visible from this spot)`
       scoreEl.style.color = colorForCount(ev.tagCount)
 
       if (cameraLines.length !== robot.cameras.length) {
@@ -57,9 +65,14 @@ export function createHud(container: HTMLElement): Hud {
         cameraLines.length = 0
         robot.cameras.forEach((_cam, i) => {
           const line = document.createElement('div')
-          line.style.color = hexColor(CAMERA_COLORS[i % CAMERA_COLORS.length])
+          const dot = document.createElement('span')
+          dot.className = 'camera-dot'
+          dot.style.background = hexColor(CAMERA_COLORS[i % CAMERA_COLORS.length])
+          const text = document.createElement('span')
+          text.style.color = hexColor(CAMERA_COLORS[i % CAMERA_COLORS.length])
+          line.append(dot, text)
           camerasEl.appendChild(line)
-          cameraLines.push(line)
+          cameraLines.push(text)
         })
       }
       robot.cameras.forEach((cam, i) => {

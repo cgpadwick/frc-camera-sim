@@ -38,6 +38,7 @@ export function createTabBar(opts: {
   for (const m of ['field', 'robot'] as AppMode[]) {
     const b = document.createElement('button')
     b.textContent = m === 'field' ? 'Field' : 'Robot'
+    b.title = m === 'field' ? 'Drive the field and analyze coverage' : 'Build your robot and place cameras'
     b.classList.toggle('active', m === mode)
     b.addEventListener('click', () => select(m))
     buttons.set(m, b)
@@ -50,14 +51,14 @@ export function createTabBar(opts: {
   addBtn.addEventListener('click', opts.onAddCamera)
   el.appendChild(addBtn)
 
-  addBoxBtn.textContent = '▦ Add box'
-  addBoxBtn.title = 'Drops a box on the chassis — grab it to move/rotate/scale'
+  addBoxBtn.textContent = '▦ Add body shape'
+  addBoxBtn.title = 'Drops a box on the chassis — grab it to move/rotate/scale. Shapes block camera views like your real robot would.'
   addBoxBtn.style.display = 'none'
   addBoxBtn.addEventListener('click', opts.onAddBox)
   el.appendChild(addBoxBtn)
 
-  frustumBtn.textContent = '👁 Frustums (F)'
-  frustumBtn.title = 'Show/hide camera view cones (F key works everywhere)'
+  frustumBtn.textContent = '👁 View cones (F)'
+  frustumBtn.title = 'Show/hide the camera view cones (a.k.a. frustums). F key works everywhere.'
   frustumBtn.style.display = 'none'
   frustumBtn.classList.add('active')
   const applyFrustumsVisible = (visible: boolean): void => {
@@ -72,14 +73,15 @@ export function createTabBar(opts: {
 
   const opacityWrap = document.createElement('label')
   opacityWrap.className = 'tab-bar-slider'
-  opacityWrap.title = 'Frustum fill opacity (0 = wireframe only)'
+  opacityWrap.title = 'How solid the camera view cones look (0 = outline only)'
   const opacitySlider = document.createElement('input')
   opacitySlider.type = 'range'
   opacitySlider.min = '0'
   opacitySlider.max = '60'
   opacitySlider.value = '15'
+  opacitySlider.setAttribute('aria-label', 'Cone opacity')
   opacitySlider.addEventListener('input', () => opts.onFrustumOpacity(Number(opacitySlider.value) / 100))
-  opacityWrap.append(document.createTextNode('🔺'), opacitySlider)
+  opacityWrap.append(document.createTextNode('Cone opacity'), opacitySlider)
   el.appendChild(opacityWrap)
 
   return { el, current: () => mode, setFrustumsVisible: applyFrustumsVisible }

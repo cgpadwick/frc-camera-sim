@@ -2,6 +2,7 @@ import type { SimConfig } from '../core/types'
 import { CAMERA_PRESETS, applyPreset } from './presets'
 import { exportConfig, importConfig, KNOWN_FIELD_YEARS } from './configStore'
 import { showToast } from './toast'
+import { CAMERA_COLORS } from '../viz/frustumView'
 
 export interface ConfigPanelOptions {
   config: SimConfig
@@ -126,10 +127,10 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
   // gets in the way in camera-POV views. The tab stays visible when collapsed.
   const toggle = document.createElement('button')
   toggle.className = 'config-panel-toggle'
-  toggle.textContent = 'Config ✕'
+  toggle.textContent = 'Hide panel ›'
   toggle.addEventListener('click', () => {
     const collapsed = root.classList.toggle('collapsed')
-    toggle.textContent = collapsed ? 'Config ☰' : 'Config ✕'
+    toggle.textContent = collapsed ? '‹ Show panel' : 'Hide panel ›'
   })
   // Sticky header keeps the toggle above the scrolling content instead of
   // floating over (and obscuring) input fields.
@@ -212,49 +213,49 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     )
 
     // --- Superstructure boxes ---
-    root.appendChild(heading('Superstructure boxes'))
+    root.appendChild(heading('Robot body shapes'))
     working.robot.superstructure.forEach((box, i) => {
       const item = document.createElement('div')
       item.className = 'list-item'
       item.appendChild(labelOnly(`Box ${i}`))
       item.appendChild(
-        numberField('center.x', box.center.x, 0.01, (v) => {
+        numberField('Center X (m)', box.center.x, 0.01, (v) => {
           box.center.x = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('center.y', box.center.y, 0.01, (v) => {
+        numberField('Center Y (m)', box.center.y, 0.01, (v) => {
           box.center.y = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('center.z', box.center.z, 0.01, (v) => {
+        numberField('Center Z (m)', box.center.z, 0.01, (v) => {
           box.center.z = v
           emitChange()
         }),
       )
       item.appendChild(
-        positiveNumberField('size.x', box.size.x, 0.01, (v) => {
+        positiveNumberField('Size X (m)', box.size.x, 0.01, (v) => {
           box.size.x = v
           emitChange()
         }),
       )
       item.appendChild(
-        positiveNumberField('size.y', box.size.y, 0.01, (v) => {
+        positiveNumberField('Size Y (m)', box.size.y, 0.01, (v) => {
           box.size.y = v
           emitChange()
         }),
       )
       item.appendChild(
-        positiveNumberField('size.z', box.size.z, 0.01, (v) => {
+        positiveNumberField('Size Z (m)', box.size.z, 0.01, (v) => {
           box.size.z = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('yawDeg', box.yawDeg, 1, (v) => {
+        numberField('Yaw (°)', box.yawDeg, 1, (v) => {
           box.yawDeg = v
           emitChange()
         }),
@@ -286,9 +287,14 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
       const item = document.createElement('div')
       item.className = 'list-item'
       item.dataset.camIndex = String(i)
-      item.appendChild(labelOnly(`Camera ${i}`))
+      const camLabel = labelOnly(`Camera ${i}`)
+      const camDot = document.createElement('span')
+      camDot.className = 'camera-dot'
+      camDot.style.background = `#${CAMERA_COLORS[i % CAMERA_COLORS.length].toString(16).padStart(6, '0')}`
+      camLabel.prepend(camDot)
+      item.appendChild(camLabel)
       item.appendChild(
-        textField('name', cam.name, (v) => {
+        textField('Name', cam.name, (v) => {
           cam.name = v
           emitChange()
         }),
@@ -316,69 +322,69 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
       item.appendChild(presetRow)
 
       item.appendChild(
-        numberField('hfovDeg', cam.hfovDeg, 0.1, (v) => {
+        numberField('H FOV (°)', cam.hfovDeg, 0.1, (v) => {
           cam.hfovDeg = v
           updateCamWarning()
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('vfovDeg', cam.vfovDeg, 0.1, (v) => {
+        numberField('V FOV (°)', cam.vfovDeg, 0.1, (v) => {
           cam.vfovDeg = v
           updateCamWarning()
           emitChange()
         }),
       )
       item.appendChild(
-        positiveNumberField('resWidth', cam.resWidth, 1, (v) => {
+        positiveNumberField('Resolution W (px)', cam.resWidth, 1, (v) => {
           cam.resWidth = v
           emitChange()
         }),
       )
       item.appendChild(
-        positiveNumberField('resHeight', cam.resHeight, 1, (v) => {
+        positiveNumberField('Resolution H (px)', cam.resHeight, 1, (v) => {
           cam.resHeight = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('maxRangeM (0 = auto)', cam.maxRangeM ?? 0, 0.1, (v) => {
+        numberField('Max range (m, 0 = auto)', cam.maxRangeM ?? 0, 0.1, (v) => {
           cam.maxRangeM = v > 0 ? v : null
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('mount.x', cam.mount.x, 0.01, (v) => {
+        numberField('Mount X (m)', cam.mount.x, 0.01, (v) => {
           cam.mount.x = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('mount.y', cam.mount.y, 0.01, (v) => {
+        numberField('Mount Y (m)', cam.mount.y, 0.01, (v) => {
           cam.mount.y = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('mount.z', cam.mount.z, 0.01, (v) => {
+        numberField('Mount Z (m)', cam.mount.z, 0.01, (v) => {
           cam.mount.z = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('rollDeg', cam.mount.rollDeg, 1, (v) => {
+        numberField('Roll (°)', cam.mount.rollDeg, 1, (v) => {
           cam.mount.rollDeg = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('pitchDeg (+down/−up)', cam.mount.pitchDeg, 1, (v) => {
+        numberField('Pitch (°, +down/−up)', cam.mount.pitchDeg, 1, (v) => {
           cam.mount.pitchDeg = v
           emitChange()
         }),
       )
       item.appendChild(
-        numberField('yawDeg', cam.mount.yawDeg, 1, (v) => {
+        numberField('Yaw (°)', cam.mount.yawDeg, 1, (v) => {
           cam.mount.yawDeg = v
           emitChange()
         }),

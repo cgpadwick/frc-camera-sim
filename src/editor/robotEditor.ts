@@ -29,6 +29,8 @@ export interface RobotEditorOptions {
   onBoxUpdate(index: number, box: OccluderBox): void
   /** Superstructure box deleted via toolbar/Delete key. */
   onBoxRemove(index: number): void
+  /** One-line contextual hint for the current editor state (QA round 5: replaces the instruction wall). */
+  onHint?(text: string): void
 }
 
 export interface RobotEditor {
@@ -186,6 +188,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       tc.enabled = false
       toolbar.style.display = 'none'
     }
+    updateHint()
   }
 
   /** Bake the gizmo-manipulated mesh transform back into config units. */
@@ -230,6 +233,13 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   let selectionBox: THREE.BoxHelper | null = null
   const raycaster = new THREE.Raycaster()
 
+  function updateHint(): void {
+    if (addArmed) opts.onHint?.('Click a spot on the robot to place the new camera')
+    else if (selectedIndex !== null) opts.onHint?.('Drag the camera to move it across the robot · fine-tune numbers in the panel')
+    else if (selectedBoxIndex !== null) opts.onHint?.('Drag the arrows to move · Rotate/Scale via the toolbar · Delete key removes')
+    else opts.onHint?.('Click a camera or body shape to edit it · drag empty space to orbit')
+  }
+
   function select(index: number | null): void {
     selectedIndex = index
     if (selectionBox) {
@@ -242,6 +252,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       scene.add(selectionBox)
     }
     opts.onSelectCamera(index)
+    updateHint()
   }
 
   function robotMeshes(): THREE.Object3D[] {
@@ -324,6 +335,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
         syncHandles(opts.getRobot()) // gizmo must exist before selecting it
         select(opts.getRobot().cameras.length - 1)
       }
+      updateHint()
       return
     }
     // Gizmos are Groups — raycast recursively, then walk up to the top-level handle.
@@ -383,6 +395,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     },
     setActive(active) {
       if (active) {
+        updateHint()
         el().addEventListener('pointerdown', onPointerDown)
         el().addEventListener('pointermove', onPointerMove)
         window.addEventListener('pointerup', onPointerUp)
@@ -404,6 +417,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     armAddCamera() {
       addArmed = true
       el().style.cursor = 'crosshair'
+      updateHint()
     },
     rebuildRobot() {
       const keepBox = selectedBoxIndex

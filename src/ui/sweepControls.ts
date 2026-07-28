@@ -115,6 +115,8 @@ export interface SweepControlsHandle {
   setScore(score: { worstPct: number; idealRangeM: number } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
+  /** Which button carries the accent color: exactly one loud action per state. */
+  setPrimaryAction(which: 'run' | 'optimize'): void
   /** Enables/disables the Optimize button (requires a completed sweep). */
   setOptimizeEnabled(enabled: boolean): void
   /** Non-null text puts the bar into optimizing state (progress text + Cancel); null restores it. */
@@ -146,11 +148,12 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   el.appendChild(bar)
 
   const runBtn = document.createElement('button')
-  runBtn.textContent = 'Run coverage sweep'
+  runBtn.textContent = 'Analyze coverage'
+  runBtn.title = "Simulates your cameras from every field position — a 'coverage sweep'"
   runBtn.addEventListener('click', () => opts.onRun())
   bar.appendChild(runBtn)
 
-  function radio(value: SweepViewMode, labelText: string, checked: boolean): HTMLLabelElement {
+  function radio(value: SweepViewMode, labelText: string, checked: boolean, tooltip?: string): HTMLLabelElement {
     const label = document.createElement('label')
     label.className = 'sweep-mode-radio'
     const input = document.createElement('input')
@@ -162,10 +165,11 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       if (input.checked) opts.onModeChange(value)
     })
     label.append(input, document.createTextNode(labelText))
+    if (tooltip) label.title = tooltip
     return label
   }
-  bar.appendChild(radio('min', 'Actual — worst heading', true))
-  bar.appendChild(radio('ideal', 'Ideal — any camera setup', false))
+  bar.appendChild(radio('min', 'Realistic (worst-case robot heading)', true, 'Your cameras, judged at the worst of 16 robot facings per spot'))
+  bar.appendChild(radio('ideal', 'Theoretical best', false, 'What a perfect all-direction camera setup could see — the ceiling no mounting can beat'))
 
   const idealLabel = document.createElement('label')
   idealLabel.className = 'sweep-mode-radio'
@@ -210,7 +214,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     emitIdealRange()
   })
   idealRangeInput.addEventListener('change', emitIdealRange)
-  idealLabel.append(document.createTextNode('Tag range'), idealRangeSelect, idealRangeInput)
+  idealLabel.append(document.createTextNode('Tag range (m)'), idealRangeSelect, idealRangeInput)
   bar.appendChild(idealLabel)
 
   const legend = document.createElement('div')
@@ -230,7 +234,6 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
   const scoreEl = document.createElement('span')
   scoreEl.className = 'sweep-score'
-  scoreEl.title = 'Field-wide tags seen vs the ideal layer (ideal = 100)'
   scoreEl.style.display = 'none'
   bar.appendChild(scoreEl)
 
@@ -242,6 +245,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
   const clearBtn = document.createElement('button')
   clearBtn.textContent = 'Clear'
+  clearBtn.title = 'Remove the coverage map and its results'
   clearBtn.addEventListener('click', () => opts.onClear())
   bar.appendChild(clearBtn)
 
@@ -402,10 +406,18 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
         return
       }
       scoreEl.style.display = ''
-      scoreEl.textContent = `Score vs ideal@${score.idealRangeM.toFixed(1)}m: ${score.worstPct.toFixed(0)} / 100`
+      scoreEl.textContent = `Coverage score: ${score.worstPct.toFixed(0)}/100`
+      scoreEl.title = `vs. an ideal omnidirectional setup at your ${score.idealRangeM.toFixed(1)} m tag range`
+    },
+    setPrimaryAction(which) {
+      runBtn.classList.toggle('btn-primary', which === 'run')
+      optimizeBtn.classList.toggle('btn-primary', which === 'optimize')
     },
     setOptimizeEnabled(enabled) {
       optimizeBtn.disabled = !enabled
+      optimizeBtn.title = enabled
+        ? 'Search your robot surfaces for better mounts for the SAME cameras (count and optics fixed)'
+        : 'Run Analyze coverage first.'
     },
     setOptimizeOutcome(text) {
       outcomeWrap.style.display = text ? '' : 'none'
@@ -432,6 +444,9 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     },
     setReportEnabled(enabled) {
       reportBtn.disabled = !enabled
+      const why = 'Run Analyze coverage first.'
+      reportBtn.title = enabled ? 'Open a printable coverage report in a new tab' : why
+      baselineBtn.title = enabled ? 'Remember this result to compare future setups against in the report' : why
       baselineBtn.disabled = !enabled
     },
   }

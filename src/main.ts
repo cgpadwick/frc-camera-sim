@@ -18,6 +18,7 @@ import { createHeatmapView } from './viz/heatmapView'
 import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
 import { createTabBar } from './ui/tabs'
+import { showFirstRunMarks, showInspectMark, firstSweepPending } from './ui/coachMarks'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
@@ -288,25 +289,57 @@ async function boot() {
       applyEditorRobotChange(true)
       editor.rebuildRobot()
     },
+    onHint(text) {
+      hintLine.textContent = text
+    },
   })
 
-  // Instructions overlay for the robot editor (visible only in robot mode).
+  // Robot-editor guidance: ONE contextual hint line for the current state,
+  // with the full legend collapsed behind a "?" toggle (QA round 5, P1.11).
   const editorHints = document.createElement('div')
   editorHints.className = 'editor-hints'
-  editorHints.innerHTML = [
-    '<b>Robot editor</b>',
-    '🖱 <b>Drag</b> a camera to slide it across the robot',
-    '📐 It aims out of whatever face it sits on',
+  const hintLine = document.createElement('div')
+  hintLine.className = 'editor-hint-line'
+  const helpToggle = document.createElement('button')
+  helpToggle.className = 'editor-help-toggle'
+  helpToggle.textContent = '?'
+  helpToggle.title = 'Show all editor controls'
+  const legend = document.createElement('div')
+  legend.style.display = 'none'
+  legend.innerHTML = [
+    '🖱 <b>Drag</b> a camera to slide it across the robot (it aims out of the face it sits on)',
     '➕ <b>Add camera</b>, then click a spot on the robot',
-    '🎯 <b>Click</b> a camera to edit its numbers in the panel',
-    '▦ <b>Click a box</b> to move/rotate/scale it (toolbar appears)',
-    '⌫ <b>Delete</b> removes the selected box',
-    '🌀 Left-drag orbit · right-drag pan · scroll zoom',
+    '▦ <b>Click a body shape</b> to move/rotate/scale it · <b>Delete</b> removes it',
+    '🌀 Left-drag orbit · right-drag pan · scroll zoom · <b>F</b> toggles view cones',
   ]
     .map((l) => `<div>${l}</div>`)
     .join('')
+  helpToggle.addEventListener('click', () => {
+    const open = legend.style.display === 'none'
+    legend.style.display = open ? '' : 'none'
+    helpToggle.title = open ? 'Hide controls' : 'Show all editor controls'
+  })
+  const hintRow = document.createElement('div')
+  hintRow.className = 'editor-hint-row'
+  hintRow.append(hintLine, helpToggle)
+  editorHints.append(hintRow, legend)
   editorHints.style.display = 'none'
   app.appendChild(editorHints)
+
+  // Purpose chip: tells a cold-load user what the tool is FOR and what to
+  // press first; gone forever once they've ever completed a sweep.
+  const purposeChip = document.createElement('div')
+  purposeChip.className = 'purpose-chip'
+  if (firstSweepPending()) {
+    const text = document.createElement('span')
+    text.innerHTML = '<b>Find the best camera placement for your robot</b> — set it up in the Robot tab, then press Analyze coverage.'
+    const close = document.createElement('button')
+    close.textContent = '✕'
+    close.title = 'Dismiss'
+    close.addEventListener('click', () => purposeChip.remove())
+    purposeChip.append(text, close)
+    app.appendChild(purposeChip)
+  }
 
   const tabs = createTabBar({
     onChange(mode) {
@@ -400,6 +433,8 @@ async function boot() {
     sweepControls.setLegendVisible(false)
     sweepControls.setScore(null)
     sweepControls.setOptimizeEnabled(false)
+    sweepControls.setPrimaryAction('run')
+    ctx.renderer.domElement.style.cursor = ''
     clearProposal()
     sweepControls.setStale(false)
     sweepControls.setReportEnabled(false)
@@ -494,6 +529,7 @@ async function boot() {
       if (sweepRunning) return
       clearProposal() // a fresh sweep supersedes any open A/B session
       sweepControls.setOptimizeOutcome(null)
+      purposeChip.remove()
       sweepRunning = true
       const myGeneration = ++sweepGeneration
       // Snapshot the config BEFORE dispatch, not at resolve time: the worker
@@ -530,6 +566,9 @@ async function boot() {
           sweepControls.setStale(false)
           sweepControls.setReportEnabled(true)
           sweepControls.setOptimizeEnabled(true)
+          sweepControls.setPrimaryAction('optimize')
+          ctx.renderer.domElement.style.cursor = 'crosshair'
+          showInspectMark(sweepControls.el)
         })
         .catch((e: unknown) => {
           showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -666,6 +705,11 @@ async function boot() {
     },
   })
   app.appendChild(sweepControls.el)
+  sweepControls.setPrimaryAction('run')
+  showFirstRunMarks({
+    robotTab: tabs.el.children[1] as HTMLElement,
+    analyzeBtn: sweepControls.el.querySelector('button') as HTMLElement,
+  })
 
   // Cell inspection: DOUBLE-click a heatmap cell to inspect it. Single
   // clicks are far too overloaded on this canvas (deselect robot, orbit
