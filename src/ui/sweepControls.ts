@@ -219,7 +219,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   detailBox.className = 'cell-detail'
   el.appendChild(detailBox)
 
-  const EMPTY_DETAIL_TEXT = 'Run a sweep, then click a cell on the field to inspect it.'
+  const EMPTY_DETAIL_TEXT = 'Run a sweep, then double-click a cell on the field to inspect it.'
   detailBox.textContent = EMPTY_DETAIL_TEXT
 
   return {

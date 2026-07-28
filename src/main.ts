@@ -481,22 +481,13 @@ async function boot() {
   })
   app.appendChild(sweepControls.el)
 
-  // Cell inspection: a plain click (not an OrbitControls drag) on the canvas
-  // while a heatmap is shown picks the cell under the cursor and renders its
-  // detail. Distinguished from a drag by pointerdown->pointerup travel
-  // distance, since OrbitControls also listens on the same canvas.
-  const CLICK_DRAG_THRESHOLD_PX = 4
-  let pointerDownX = 0
-  let pointerDownY = 0
-  ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
-    pointerDownX = e.clientX
-    pointerDownY = e.clientY
-  })
-  ctx.renderer.domElement.addEventListener('pointerup', (e) => {
-    if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_DRAG_THRESHOLD_PX) return
+  // Cell inspection: DOUBLE-click a heatmap cell to inspect it. Single
+  // clicks are far too overloaded on this canvas (deselect robot, orbit
+  // slop) and made the inspector pop up constantly — dblclick is deliberate.
+  ctx.renderer.domElement.addEventListener('dblclick', (e) => {
     if (!lastSweep) return
     // Robot clicks belong to the move gizmo, not cell inspection.
-    if (robotTc.dragging || robotTc.axis || pointerHitsRobot(e)) return
+    if (robotTc.dragging || robotTc.axis || pointerHitsRobot(e as unknown as PointerEvent)) return
     const rect = ctx.renderer.domElement.getBoundingClientRect()
     const ndc = {
       x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
