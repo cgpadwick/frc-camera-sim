@@ -568,4 +568,4 @@ const normDeg = (d: number): number => {
 }
 
 /** Test-only access to internals for parity verification. */
-export const __test = { buildPoseGrid, cameraMasks, fastCameraMasks, precomputeTags }
+export const __test = { buildPoseGrid, cameraMasks, fastCameraMasks, precomputeTags, scoreMasks }

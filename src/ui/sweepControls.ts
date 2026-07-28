@@ -119,6 +119,8 @@ export interface SweepControlsHandle {
   setOptimizeEnabled(enabled: boolean): void
   /** Non-null text puts the bar into optimizing state (progress text + Cancel); null restores it. */
   setOptimizing(text: string | null): void
+  /** Persistent optimizer outcome line (survives until dismissed, the next optimize/sweep, or config drift). Null clears. */
+  setOptimizeOutcome(text: string | null): void
   /** Shows the yours-vs-proposed A/B pill with Apply/Discard. */
   showProposal(p: { yoursPct: number; proposedPct: number }): void
   setProposalSelected(which: 'yours' | 'proposed'): void
@@ -273,6 +275,21 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   cancelOptimizeBtn.addEventListener('click', () => opts.onCancelOptimize())
   bar.appendChild(cancelOptimizeBtn)
 
+  // Persistent outcome line: a ~minute-long background run must leave a
+  // trace a user who tabbed away can find (QA round 3, finding 6b).
+  const outcomeWrap = document.createElement('span')
+  outcomeWrap.className = 'optimize-outcome'
+  outcomeWrap.style.display = 'none'
+  const outcomeText = document.createElement('span')
+  const outcomeClose = document.createElement('button')
+  outcomeClose.textContent = '✕'
+  outcomeClose.title = 'Dismiss'
+  outcomeClose.addEventListener('click', () => {
+    outcomeWrap.style.display = 'none'
+  })
+  outcomeWrap.append(outcomeText, outcomeClose)
+  bar.appendChild(outcomeWrap)
+
   // Yours-vs-proposed A/B pill.
   const proposalWrap = document.createElement('span')
   proposalWrap.className = 'proposal-pill'
@@ -389,6 +406,10 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     },
     setOptimizeEnabled(enabled) {
       optimizeBtn.disabled = !enabled
+    },
+    setOptimizeOutcome(text) {
+      outcomeWrap.style.display = text ? '' : 'none'
+      outcomeText.textContent = text ?? ''
     },
     setOptimizing(text) {
       optimizeStatus.style.display = text ? '' : 'none'

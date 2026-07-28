@@ -147,6 +147,8 @@ async function boot() {
     }
     ghostFrustums.update({ x: 0, y: 0, headingRad: 0 }, { ...config.robot, cameras: [] }, tagSize)
     sweepControls.hideProposal()
+    // An outcome line referencing a discarded proposal would be stale.
+    sweepControls.setOptimizeOutcome(null)
   }
 
   const viewManager = createViewManager(ctx)
@@ -491,6 +493,7 @@ async function boot() {
     onRun() {
       if (sweepRunning) return
       clearProposal() // a fresh sweep supersedes any open A/B session
+      sweepControls.setOptimizeOutcome(null)
       sweepRunning = true
       const myGeneration = ++sweepGeneration
       // Snapshot the config BEFORE dispatch, not at resolve time: the worker
@@ -566,6 +569,7 @@ async function boot() {
     onOptimize() {
       if (!lastSweep || optimizeHandle || config.robot.cameras.length === 0) return
       clearProposal()
+      sweepControls.setOptimizeOutcome(null)
       // 16 headings = the same worst-case standard the final score uses; coarser cells only.
       const coarse = { cellSizeM: 0.5, headingCount: 16, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
       sweepControls.setOptimizing('Optimizing…')
@@ -578,7 +582,9 @@ async function boot() {
           const identical =
             JSON.stringify(res.cameras.map((c) => c.mount)) === JSON.stringify(config.robot.cameras.map((c) => c.mount))
           if (identical) {
-            showToast('Optimizer searched the mount space but found nothing better than your current setup — no proposal to apply.', 8000)
+            sweepControls.setOptimizeOutcome(
+              `Optimizer finished: nothing better than your current setup (${res.evals.toLocaleString()} mounts searched — your mounts are the search optimum).`,
+            )
             return
           }
           const proposalRobot: RobotConfig = { ...structuredClone(config.robot), cameras: res.cameras }
@@ -597,11 +603,17 @@ async function boot() {
           buildGhostGizmos(proposalRobot)
           const yours = coverageScoreVsIdeal(lastSweep.result)?.worstPct ?? 0
           sweepControls.showProposal({ yoursPct: yours, proposedPct: proposal.score })
+          sweepControls.setOptimizeOutcome(
+            `Optimizer finished: proposal scores ${proposal.score.toFixed(0)} vs your ${yours.toFixed(0)} (${res.evals.toLocaleString()} mounts searched) — review the white ghost cameras, then Apply or Discard.`,
+          )
           selectProposalView('proposed')
         })
         .catch((e: unknown) => {
-          if (e instanceof Error && e.message === 'cancelled') return
-          showToast(`Optimize failed: ${e instanceof Error ? e.message : String(e)}`)
+          if (e instanceof Error && e.message === 'cancelled') {
+            sweepControls.setOptimizeOutcome('Optimizer cancelled — no proposal generated.')
+            return
+          }
+          sweepControls.setOptimizeOutcome(`Optimize failed: ${e instanceof Error ? e.message : String(e)}`)
         })
         .finally(() => {
           optimizeHandle = null
