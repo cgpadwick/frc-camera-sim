@@ -80,3 +80,30 @@ export function autoIdealRangeM(robot: RobotConfig, tagSize: number): number {
     ...robot.cameras.map((c) => maxRangeFor(c, tagSize) + Math.hypot(c.mount.x, c.mount.y)),
   )
 }
+
+/**
+ * Index of the superstructure box the camera's mount point sits inside, or
+ * null. A camera embedded in its own superstructure is 100% blind (every
+ * ray starts occluded) — the UI uses this to say WHY instead of showing an
+ * unexplained 0 tags / black POV.
+ */
+export function cameraInsideBoxIndex(robot: RobotConfig, cameraIndex: number): number | null {
+  const m = robot.cameras[cameraIndex]?.mount
+  if (!m) return null
+  for (let i = 0; i < robot.superstructure.length; i++) {
+    const b = robot.superstructure[i]
+    const yaw = (-b.yawDeg * Math.PI) / 180
+    const dx = m.x - b.center.x
+    const dy = m.y - b.center.y
+    const lx = dx * Math.cos(yaw) - dy * Math.sin(yaw)
+    const ly = dx * Math.sin(yaw) + dy * Math.cos(yaw)
+    if (
+      Math.abs(lx) <= b.size.x / 2 &&
+      Math.abs(ly) <= b.size.y / 2 &&
+      Math.abs(m.z - b.center.z) <= b.size.z / 2
+    ) {
+      return i
+    }
+  }
+  return null
+}

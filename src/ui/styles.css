@@ -79,7 +79,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   color: #eee;
   font-family: monospace;
   font-size: 12px;
-  padding: 40px 12px 12px;
+  padding: 12px;
 }
 
 .config-panel h3 {
@@ -273,11 +273,18 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   padding: 3px 6px;
 }
 
-.config-panel-toggle {
-  position: fixed;
-  top: 10px;
-  right: 10px;
+.config-panel-header {
+  position: sticky;
+  top: -12px; /* cancel the panel's top padding so the header hugs the edge */
+  margin: -12px -12px 0;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(20, 22, 28, 0.97);
   z-index: 20;
+}
+
+.config-panel-toggle {
   font-family: monospace;
   font-size: 12px;
   background: #22262e;
@@ -296,8 +303,15 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   pointer-events: none;
 }
 
-.config-panel.collapsed > :not(.config-panel-toggle) {
+.config-panel.collapsed > :not(.config-panel-header) {
   display: none;
+}
+
+.config-panel.collapsed .config-panel-header {
+  background: transparent;
+  position: static;
+  margin: 0;
+  padding: 0;
 }
 
 .config-panel.collapsed .config-panel-toggle {

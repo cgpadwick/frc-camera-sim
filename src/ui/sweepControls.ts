@@ -180,19 +180,27 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   const idealRangeInput = document.createElement('input')
   idealRangeInput.type = 'number'
   idealRangeInput.min = '0.5'
+  idealRangeInput.max = '30'
   idealRangeInput.step = '0.5'
   idealRangeInput.value = String(opts.initialTrustedRangeM ?? 5)
   idealRangeInput.style.width = '3.5em'
   idealRangeInput.style.display = opts.initialTrustedRangeM === null ? 'none' : ''
-  idealRangeInput.title = 'Tags farther than this are ignored everywhere (bad pose accuracy). Applies live; re-run the sweep for maps.'
+  idealRangeInput.title = 'Tags farther than this are ignored everywhere (bad pose accuracy). 0.5-30m; invalid input snaps back. Applies live; re-run the sweep for maps.'
+  let lastValidRangeM = opts.initialTrustedRangeM ?? 5
   idealRangeSelect.value = opts.initialTrustedRangeM === null ? 'auto' : 'custom'
   const emitIdealRange = (): void => {
     if (idealRangeSelect.value === 'auto') {
       opts.onIdealRangeChange(0) // 0 = auto (longest camera reach)
-    } else {
-      const v = Number(idealRangeInput.value)
-      if (Number.isFinite(v) && v > 0) opts.onIdealRangeChange(v)
+      return
     }
+    // Typed/pasted input bypasses the spinner's min/max — clamp and reflect
+    // the effective value back into the field so the UI can never display a
+    // number the sim isn't actually using.
+    const raw = Number(idealRangeInput.value)
+    const v = Number.isFinite(raw) ? Math.min(30, Math.max(0.5, raw)) : lastValidRangeM
+    lastValidRangeM = v
+    idealRangeInput.value = String(v)
+    opts.onIdealRangeChange(v)
   }
   idealRangeSelect.title = 'Trusted tag range: tags beyond it are filtered from detection AND the ideal layer. "Camera limit" = no cap beyond what the cameras resolve.'
   idealRangeSelect.addEventListener('change', () => {

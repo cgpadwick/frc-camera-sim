@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
-import { evaluatePose, idealTagCount, autoIdealRangeM } from '../../src/core/evaluate'
+import { evaluatePose, idealTagCount, autoIdealRangeM, cameraInsideBoxIndex } from '../../src/core/evaluate'
 import type { RobotConfig } from '../../src/core/types'
 
 const layout = parseWpilibLayout(JSON.parse(readFileSync('public/layouts/2026-rebuilt-welded.json', 'utf8')))
@@ -74,5 +74,34 @@ describe('autoIdealRangeM', () => {
     const r: RobotConfig = { lengthM: 1, widthM: 1, chassisHeightM: 0.1, teamNumber: '0', superstructure: [],
       cameras: [cam(3, 0, 0), cam(5, 0.3, 0.4)] }
     expect(autoIdealRangeM(r, 0.1651)).toBeCloseTo(5.5) // 5 + hypot(0.3, 0.4)
+  })
+})
+
+describe('cameraInsideBoxIndex', () => {
+  const boxedRobot: RobotConfig = {
+    lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '0',
+    superstructure: [{ center: { x: 0, y: 0, z: 0.53 }, size: { x: 0.3, y: 0.3, z: 0.8 }, yawDeg: 0 }],
+    cameras: [
+      { name: 'inside', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+        mount: { x: 0, y: 0, z: 0.45, rollDeg: 0, pitchDeg: -15, yawDeg: 90 } },
+      { name: 'outside', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+        mount: { x: 0.3, y: 0, z: 0.25, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } },
+      { name: 'on-face', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+        mount: { x: 0.15, y: 0, z: 0.45, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } },
+    ],
+  }
+  it('flags the tester repro camera (0,0,0.45) as inside Box 0', () => {
+    expect(cameraInsideBoxIndex(boxedRobot, 0)).toBe(0)
+  })
+  it('does not flag a chassis-front camera', () => {
+    expect(cameraInsideBoxIndex(boxedRobot, 1)).toBeNull()
+  })
+  it('a flush face mount counts as inside (boundary) — editor placement offsets slightly outward in practice', () => {
+    expect(cameraInsideBoxIndex(boxedRobot, 2)).toBe(0)
+  })
+  it('respects box yaw', () => {
+    const r: RobotConfig = { ...boxedRobot, superstructure: [{ center: { x: 0, y: 0, z: 0.5 }, size: { x: 0.6, y: 0.1, z: 0.4 }, yawDeg: 90 }],
+      cameras: [{ ...boxedRobot.cameras[0], mount: { x: 0, y: 0.25, z: 0.5, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } }] }
+    expect(cameraInsideBoxIndex(r, 0)).toBe(0) // yawed long axis now spans Y
   })
 })

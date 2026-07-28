@@ -131,7 +131,12 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     const collapsed = root.classList.toggle('collapsed')
     toggle.textContent = collapsed ? 'Config ☰' : 'Config ✕'
   })
-  root.appendChild(toggle)
+  // Sticky header keeps the toggle above the scrolling content instead of
+  // floating over (and obscuring) input fields.
+  const header = document.createElement('div')
+  header.className = 'config-panel-header'
+  header.appendChild(toggle)
+  root.appendChild(header)
 
   function emitChange(): void {
     opts.onChange(structuredClone(working))
@@ -154,9 +159,9 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
   let panelMode: 'field' | 'robot' = 'field'
 
   function renderPanel(): void {
-    // Keep the collapse toggle: replaceChildren() rebuilds the whole panel,
-    // and the toggle lives inside root so the .collapsed CSS can scope it.
-    root.replaceChildren(toggle)
+    // Keep the collapse header: replaceChildren() rebuilds the whole panel,
+    // and the header lives inside root so the .collapsed CSS can scope it.
+    root.replaceChildren(header)
 
     if (panelMode === 'field') {
     // --- Field year ---
@@ -165,7 +170,9 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     for (const year of FIELD_YEARS) {
       const o = document.createElement('option')
       o.value = year
-      o.textContent = year
+      // Only the 2026 field ships a 3D model; be upfront in the label so the
+      // fallback toast isn't the first hint.
+      o.textContent = year === '2025-reefscape-welded' ? `${year} (simplified 3D)` : year
       fieldSelect.appendChild(o)
     }
     fieldSelect.value = working.fieldYear

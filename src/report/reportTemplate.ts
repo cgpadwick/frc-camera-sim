@@ -161,23 +161,21 @@ function renderCameraShare(stats: ReportStats): string {
 
 /**
  * Opens `html` (from `renderReport`) as a standalone printable document in a
- * new tab: `window.open('', '_blank')` + `document.write`. If the popup is
- * blocked (returns null, or a same-origin document we can't write to — some
- * blockers hand back a closed/inert window instead of null), the report is
- * surfaced as a toast instead of silently disappearing.
+ * new tab via a Blob URL — unlike the document.write/about:blank approach,
+ * the tab gets a real (refreshable) URL and popup blockers are detectable.
+ * The object URL is revoked after a grace period so the document can finish
+ * loading; already-open tabs keep their content after revocation.
  */
 export function openReport(html: string): void {
-  const win = window.open('', '_blank')
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
   if (!win) {
+    URL.revokeObjectURL(url)
     showToast('Report popup was blocked — allow popups for this site to view the coverage report.')
     return
   }
-  try {
-    win.document.write(html)
-    win.document.close()
-  } catch {
-    showToast('Report popup was blocked — allow popups for this site to view the coverage report.')
-  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 function renderTagLists(stats: ReportStats): string {
