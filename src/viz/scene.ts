@@ -8,6 +8,8 @@ export interface SceneCtx {
   renderer: THREE.WebGLRenderer
   controls: OrbitControls
   onFrame(cb: (dt: number) => void): void
+  /** Swap what the render loop draws (e.g. the robot-editor scene). Defaults to `scene`. */
+  setActiveScene(s: THREE.Scene): void
 }
 
 export function createScene(container: HTMLElement): SceneCtx {
@@ -32,6 +34,7 @@ export function createScene(container: HTMLElement): SceneCtx {
   scene.add(sun)
 
   const callbacks: ((dt: number) => void)[] = []
+  let activeScene = scene
   const resize = () => {
     const w = container.clientWidth
     const h = container.clientHeight
@@ -51,7 +54,16 @@ export function createScene(container: HTMLElement): SceneCtx {
     // state even when .enabled is false — skip it entirely in camera-POV
     // view modes or it would clobber the pose set by viewModes.update().
     if (controls.enabled) controls.update()
-    renderer.render(scene, camera)
+    renderer.render(activeScene, camera)
   })
-  return { scene, camera, renderer, controls, onFrame: (cb) => callbacks.push(cb) }
+  return {
+    scene,
+    camera,
+    renderer,
+    controls,
+    onFrame: (cb) => callbacks.push(cb),
+    setActiveScene: (s) => {
+      activeScene = s
+    },
+  }
 }

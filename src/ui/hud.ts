@@ -21,6 +21,7 @@ function hexColor(n: number): string {
 }
 
 export interface Hud {
+  el: HTMLElement
   update(ev: PoseEvaluation, robot: RobotConfig): void
 }
 
@@ -41,6 +42,7 @@ export function createHud(container: HTMLElement): Hud {
   const cameraLines: HTMLDivElement[] = []
 
   return {
+    el: root,
     update(ev, robot) {
       scoreEl.textContent = String(Math.round(ev.score))
       scoreEl.style.color = colorForScore(ev.score)

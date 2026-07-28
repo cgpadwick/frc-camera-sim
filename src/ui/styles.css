@@ -3,7 +3,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 .hud {
   position: absolute;
-  top: 12px;
+  top: 58px;
   left: 12px;
   font-family: monospace;
   color: #eee;
@@ -244,7 +244,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 .view-select {
   position: absolute;
-  top: 110px;
+  top: 160px;
   left: 12px;
   display: flex;
   gap: 8px;
@@ -297,4 +297,30 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 .config-panel.collapsed .config-panel-toggle {
   pointer-events: auto;
+}
+
+.tab-bar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 12;
+}
+
+.tab-bar button {
+  font-family: monospace;
+  font-size: 13px;
+  background: #22262e;
+  color: #aaa;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.tab-bar button.active {
+  background: #3a4150;
+  color: #fff;
+  border-color: #6a7385;
 }

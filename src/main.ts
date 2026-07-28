@@ -17,6 +17,9 @@ import { showToast, dismissToast } from './ui/toast'
 import { createHeatmapView } from './viz/heatmapView'
 import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
+import { createTabBar } from './ui/tabs'
+import { createRobotEditor } from './editor/robotEditor'
+import { disposeObject3D } from './viz/dispose'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
 import { sweepInWorker } from './workers/sweepClient'
 import { DEFAULT_SWEEP } from './core/sweep'
@@ -32,25 +35,6 @@ import { renderReport, openReport } from './report/reportTemplate'
 // showToast's `key` param. Also used to dismiss a stale banner once a later
 // field switch's model DOES load.
 const FIELD_MODEL_TOAST_KEY = 'field-model-unavailable'
-
-/**
- * Frees GPU/canvas resources (geometries, materials, and any material
- * texture maps) for every mesh/line under `obj` before it's discarded.
- * `buildRobot`/`buildFieldView` allocate these with no disposal path of
- * their own, so rebuild call sites must dispose the old group themselves.
- */
-function disposeObject3D(obj: THREE.Object3D): void {
-  obj.traverse((child) => {
-    const withGeometry = child as THREE.Mesh
-    withGeometry.geometry?.dispose()
-    const material = (child as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined
-    if (!material) return
-    for (const m of Array.isArray(material) ? material : [material]) {
-      ;(m as THREE.MeshBasicMaterial).map?.dispose()
-      m.dispose()
-    }
-  })
-}
 
 interface LoadedField {
   layout: TagLayout
@@ -121,8 +105,73 @@ async function boot() {
   app.appendChild(viewSelect.el)
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.target !== document.body) return
-    if (e.key.toLowerCase() === 'v') viewManager.cycle()
+    if (e.key.toLowerCase() === 'v' && appMode === 'field') viewManager.cycle()
   })
+
+  // --- Robot editor mode ---
+  let appMode: 'field' | 'robot' = 'field'
+  // Saved field-mode camera so tab switches round-trip the viewpoint.
+  const savedFieldCam = { position: new THREE.Vector3(), target: new THREE.Vector3() }
+
+  /** Editor moved/added a camera: mutate config; on commit persist + sync all consumers. */
+  function applyEditorRobotChange(commit: boolean): void {
+    if (!commit) return
+    saveConfig(config)
+    panel.refresh(config)
+    rebuildRobot()
+    viewSelect.refresh(config.robot.cameras.map((c) => c.name))
+    markSweepStaleIfNeeded()
+  }
+
+  const editor = createRobotEditor(ctx, {
+    getRobot: () => config.robot,
+    getTagSize: () => tagSize,
+    onMountUpdate(u) {
+      const cam = config.robot.cameras[u.cameraIndex]
+      if (!cam) return
+      cam.mount = u.mount
+      applyEditorRobotChange(u.commit)
+    },
+    onAddCamera(mount) {
+      const n = config.robot.cameras.length
+      config.robot.cameras.push({
+        name: `cam-${n}`,
+        hfovDeg: 75,
+        vfovDeg: 47,
+        resWidth: 1280,
+        resHeight: 800,
+        maxRangeM: null,
+        mount,
+      })
+      applyEditorRobotChange(true)
+    },
+  })
+
+  const tabs = createTabBar({
+    onChange(mode) {
+      appMode = mode
+      if (mode === 'robot') {
+        viewManager.setMode('orbit')
+        savedFieldCam.position.copy(ctx.camera.position)
+        savedFieldCam.target.copy(ctx.controls.target)
+        ctx.setActiveScene(editor.scene)
+        ctx.camera.position.set(1.6, -1.6, 1.2)
+        ctx.controls.target.set(0, 0, 0.35)
+        editor.setActive(true)
+      } else {
+        editor.setActive(false)
+        ctx.setActiveScene(ctx.scene)
+        ctx.camera.position.copy(savedFieldCam.position)
+        ctx.controls.target.copy(savedFieldCam.target)
+      }
+      // Field-only chrome hides in robot mode.
+      for (const el of [viewSelect.el, sweepControls.el, hud.el]) {
+        el.style.display = mode === 'robot' ? 'none' : ''
+      }
+    },
+    onAddCamera: () => editor.armAddCamera(),
+  })
+  app.appendChild(tabs.el)
 
   // Coverage sweep state. `lastSweep` is the source of truth for both the
   // shown heatmap and cell inspection; it's cleared whenever it would no
@@ -207,6 +256,10 @@ async function boot() {
   }
 
   ctx.onFrame((dt) => {
+    if (appMode === 'robot') {
+      editor.update()
+      return
+    }
     drive.update(dt)
     robotGroup.position.set(drive.pose.x, drive.pose.y, 0)
     robotGroup.rotation.z = drive.pose.headingRad
@@ -326,6 +379,7 @@ async function boot() {
       config = { ...newConfig, fieldYear: config.fieldYear }
       saveConfig(config)
       rebuildRobot()
+      editor.rebuildRobot()
       viewSelect.refresh(config.robot.cameras.map((c) => c.name))
       markSweepStaleIfNeeded()
     },
@@ -335,7 +389,7 @@ async function boot() {
       void rebuildField(year)
     },
   })
-  app.appendChild(panel)
+  app.appendChild(panel.el)
 
   ;(window as any).__sim = {
     ctx,

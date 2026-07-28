@@ -107,8 +107,14 @@ function textField(labelText: string, value: string, onInput: (v: string) => voi
  * add/remove list item, preset pick, import — where losing focus is fine
  * because the user just clicked a button).
  */
-export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
-  const working: SimConfig = structuredClone(opts.config)
+export interface ConfigPanel {
+  el: HTMLElement
+  /** Replace the working copy with `config` (authoritative, from main.ts) and re-render — e.g. after the robot editor moves a camera. */
+  refresh(config: SimConfig): void
+}
+
+export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
+  let working: SimConfig = structuredClone(opts.config)
   const root = document.createElement('div')
   root.className = 'config-panel'
 
@@ -411,5 +417,11 @@ export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
   }
 
   renderPanel()
-  return root
+  return {
+    el: root,
+    refresh(config) {
+      working = structuredClone(config)
+      renderPanel()
+    },
+  }
 }
