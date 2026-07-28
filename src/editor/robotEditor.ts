@@ -79,9 +79,10 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   stripBakedCameraMarkers(robotGroup)
   scene.add(robotGroup)
 
-  // --- Front (+X) indicator: floor chevron + "FRONT" label ahead of the bumper ---
-  const frontIndicator = new THREE.Group()
-  {
+  // --- Robot-frame axis indicators (WPILib: +X forward, +Y left) ---
+  // Floor chevron + always-facing label, one per axis, just past the bumper.
+  function makeAxisIndicator(text: string, cssColor: string, hexColor: number, yawRad: number): THREE.Group {
+    const group = new THREE.Group()
     const chevron = new THREE.Shape()
     chevron.moveTo(0.14, 0)
     chevron.lineTo(-0.02, 0.09)
@@ -90,31 +91,39 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     chevron.closePath()
     const mesh = new THREE.Mesh(
       new THREE.ShapeGeometry(chevron),
-      new THREE.MeshBasicMaterial({ color: 0xffc107, transparent: true, opacity: 0.9 }),
+      new THREE.MeshBasicMaterial({ color: hexColor, transparent: true, opacity: 0.9 }),
     )
     mesh.position.z = 0.002 // just above the grid
-    frontIndicator.add(mesh)
+    group.add(mesh)
 
     const canvas = document.createElement('canvas')
-    canvas.width = 256
+    canvas.width = 512
     canvas.height = 96
     const g = canvas.getContext('2d')!
-    g.font = 'bold 64px monospace'
+    g.font = 'bold 56px monospace'
     g.textAlign = 'center'
     g.textBaseline = 'middle'
-    g.fillStyle = '#ffc107'
-    g.fillText('FRONT', 128, 48)
+    g.fillStyle = cssColor
+    g.fillText(text, 256, 48)
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
     const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }))
-    label.scale.set(0.36, 0.135, 1)
-    label.position.set(0.3, 0, 0.06)
-    frontIndicator.add(label)
+    label.scale.set(0.6, 0.113, 1)
+    label.position.set(0.32, 0, 0.06)
+    group.add(label)
+
+    group.rotation.z = yawRad // chevron points along the group's local +X
+    return group
   }
-  scene.add(frontIndicator)
+
+  const frontIndicator = makeAxisIndicator('FRONT (+X)', '#ffc107', 0xffc107, 0)
+  const leftIndicator = makeAxisIndicator('LEFT (+Y)', '#81c784', 0x81c784, Math.PI / 2)
+  scene.add(frontIndicator, leftIndicator)
 
   function updateFrontIndicator(): void {
-    frontIndicator.position.x = opts.getRobot().lengthM / 2 + 0.12
+    const robot = opts.getRobot()
+    frontIndicator.position.x = robot.lengthM / 2 + 0.12
+    leftIndicator.position.y = robot.widthM / 2 + 0.12
   }
   updateFrontIndicator()
 
