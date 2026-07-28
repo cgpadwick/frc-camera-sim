@@ -102,14 +102,31 @@ export function buildFieldView(scene: THREE.Scene, layout: TagLayout, options: F
   )
   group.add(centerLine)
 
+  // The glb field model has the AprilTags printed on its own surfaces at
+  // these exact poses, so a coplanar quad z-fights with it. Nudge each quad
+  // out along the tag's +X normal and bias its depth via polygonOffset so
+  // our (detection ground truth) quad always wins cleanly.
+  const TAG_SURFACE_OFFSET_M = 0.004
   for (const tag of layout.tags) {
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(tag.size, tag.size),
-      new THREE.MeshBasicMaterial({ map: tagTexture(tag.id), side: THREE.DoubleSide }),
+      new THREE.MeshBasicMaterial({
+        map: tagTexture(tag.id),
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      }),
     )
     quad.name = `tag-${tag.id}`
     const t = tag.pose.translation
-    quad.position.set(t.x, t.y, t.z)
+    const q = tag.pose.rotation
+    const normal = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w))
+    quad.position.set(
+      t.x + normal.x * TAG_SURFACE_OFFSET_M,
+      t.y + normal.y * TAG_SURFACE_OFFSET_M,
+      t.z + normal.z * TAG_SURFACE_OFFSET_M,
+    )
     quad.quaternion.copy(tagQuadQuaternion(tag.pose.rotation))
     group.add(quad)
   }
