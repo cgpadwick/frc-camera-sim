@@ -104,7 +104,12 @@ async function boot() {
   const viewManager = createViewManager(ctx)
   const viewSelect = createViewSelect(viewManager)
   viewSelect.refresh(config.robot.cameras.map((c) => c.name))
-  app.appendChild(viewSelect.el)
+  // HUD + view selector share a left-side column so the selector always
+  // sits below the per-camera list no matter how many cameras exist.
+  const leftStack = document.createElement('div')
+  leftStack.className = 'left-stack'
+  leftStack.append(hud.el, viewSelect.el)
+  app.appendChild(leftStack)
   // --- Pick-up-and-move the robot in field view (orbit mode) ---
   // Click the robot: an X/Y translate gizmo attaches; dragging slides it
   // across the carpet with live score/frustum feedback (the frame loop reads
