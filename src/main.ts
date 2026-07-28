@@ -152,6 +152,17 @@ async function boot() {
       selectedCameraIndex = index
       panel.highlightCamera(index)
     },
+    onBoxUpdate(index, box) {
+      if (!config.robot.superstructure[index]) return
+      config.robot.superstructure[index] = box
+      applyEditorRobotChange(true)
+      editor.rebuildRobot() // normalizes gizmo scale back into box size
+    },
+    onBoxRemove(index) {
+      config.robot.superstructure.splice(index, 1)
+      applyEditorRobotChange(true)
+      editor.rebuildRobot()
+    },
   })
 
   // Instructions overlay for the robot editor (visible only in robot mode).
@@ -163,6 +174,8 @@ async function boot() {
     '📐 It aims out of whatever face it sits on',
     '➕ <b>Add camera</b>, then click a spot on the robot',
     '🎯 <b>Click</b> a camera to edit its numbers in the panel',
+    '▦ <b>Click a box</b> to move/rotate/scale it (toolbar appears)',
+    '⌫ <b>Delete</b> removes the selected box',
     '🌀 Drag empty space to orbit, scroll to zoom',
   ]
     .map((l) => `<div>${l}</div>`)
@@ -194,6 +207,16 @@ async function boot() {
       editorHints.style.display = mode === 'robot' ? '' : 'none'
     },
     onAddCamera: () => editor.armAddCamera(),
+    onAddBox() {
+      config.robot.superstructure.push({
+        center: { x: 0, y: 0, z: config.robot.chassisHeightM + 0.15 },
+        size: { x: 0.3, y: 0.3, z: 0.3 },
+        yawDeg: 0,
+      })
+      applyEditorRobotChange(true)
+      editor.rebuildRobot()
+      editor.selectBox(config.robot.superstructure.length - 1)
+    },
   })
   app.appendChild(tabs.el)
 

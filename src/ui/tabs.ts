@@ -9,6 +9,7 @@ export interface TabBar {
 export function createTabBar(opts: {
   onChange(mode: AppMode): void
   onAddCamera(): void
+  onAddBox(): void
 }): TabBar {
   const el = document.createElement('div')
   el.className = 'tab-bar'
@@ -16,12 +17,14 @@ export function createTabBar(opts: {
 
   const buttons = new Map<AppMode, HTMLButtonElement>()
   const addBtn = document.createElement('button')
+  const addBoxBtn = document.createElement('button')
 
   function select(next: AppMode): void {
     if (next === mode) return
     mode = next
     for (const [m, b] of buttons) b.classList.toggle('active', m === mode)
     addBtn.style.display = mode === 'robot' ? '' : 'none'
+    addBoxBtn.style.display = mode === 'robot' ? '' : 'none'
     opts.onChange(mode)
   }
 
@@ -39,6 +42,12 @@ export function createTabBar(opts: {
   addBtn.style.display = 'none'
   addBtn.addEventListener('click', opts.onAddCamera)
   el.appendChild(addBtn)
+
+  addBoxBtn.textContent = '▦ Add box'
+  addBoxBtn.title = 'Drops a box on the chassis — grab it to move/rotate/scale'
+  addBoxBtn.style.display = 'none'
+  addBoxBtn.addEventListener('click', opts.onAddBox)
+  el.appendChild(addBoxBtn)
 
   return { el, current: () => mode }
 }

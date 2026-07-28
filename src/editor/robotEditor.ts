@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import type { RobotConfig, CameraSpec } from '../core/types'
+import { TransformControls } from 'three/addons/controls/TransformControls.js'
+import type { RobotConfig, CameraSpec, OccluderBox } from '../core/types'
 import { buildRobot } from '../robot/robotBuilder'
 import { createFrustumView, CAMERA_COLORS } from '../viz/frustumView'
 import { buildCameraGizmo } from '../viz/cameraModel'
@@ -24,6 +25,10 @@ export interface RobotEditorOptions {
   onAddCamera(mount: CameraSpec['mount']): void
   /** Camera gizmo clicked/grabbed (null = clicked empty space) — main.ts mirrors this into the config panel. */
   onSelectCamera(index: number | null): void
+  /** Superstructure box moved/rotated/scaled via the gizmo (fired on drag end). */
+  onBoxUpdate(index: number, box: OccluderBox): void
+  /** Superstructure box deleted via toolbar/Delete key. */
+  onBoxRemove(index: number): void
 }
 
 export interface RobotEditor {
@@ -34,6 +39,8 @@ export interface RobotEditor {
   setActive(active: boolean): void
   /** Arm add-camera mode: the next click on the robot places a new camera. */
   armAddCamera(): void
+  /** Select a superstructure box (gizmo attaches); null deselects. */
+  selectBox(index: number | null): void
   /** Rebuild the robot mesh (dims/superstructure changed via the panel). */
   rebuildRobot(): void
 }
@@ -74,6 +81,95 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   handles.name = 'camera-handles'
   scene.add(handles)
   const frustums = createFrustumView(scene)
+
+  // --- Superstructure box editing (crayon-CAD style) ---
+  const tc = new TransformControls(ctx.camera, ctx.renderer.domElement)
+  tc.setSize(0.8)
+  scene.add(tc.getHelper())
+  tc.enabled = false
+  let selectedBoxIndex: number | null = null
+
+  const toolbar = document.createElement('div')
+  toolbar.className = 'box-toolbar'
+  toolbar.style.display = 'none'
+  const toolButtons = new Map<string, HTMLButtonElement>()
+  for (const [label, act] of [
+    ['Move', 'translate'],
+    ['Rotate', 'rotate'],
+    ['Scale', 'scale'],
+    ['🗑 Delete', 'delete'],
+  ] as const) {
+    const b = document.createElement('button')
+    b.textContent = label
+    b.addEventListener('click', () => (act === 'delete' ? removeSelectedBox() : setGizmoMode(act)))
+    toolButtons.set(act, b)
+    toolbar.appendChild(b)
+  }
+  ctx.renderer.domElement.parentElement?.appendChild(toolbar)
+
+  function setGizmoMode(mode: 'translate' | 'rotate' | 'scale'): void {
+    tc.setMode(mode)
+    // Occluder boxes only support yaw — hide the other rotation rings.
+    tc.showX = mode !== 'rotate'
+    tc.showY = mode !== 'rotate'
+    tc.showZ = true
+    for (const [act, b] of toolButtons) b.classList.toggle('active', act === mode)
+  }
+  setGizmoMode('translate')
+
+  function boxMesh(index: number): THREE.Object3D | null {
+    return robotGroup.getObjectByName(`superstructure-${index}`) ?? null
+  }
+
+  function selectBox(index: number | null): void {
+    selectedBoxIndex = index
+    tc.detach()
+    const mesh = index !== null ? boxMesh(index) : null
+    if (mesh) {
+      tc.attach(mesh)
+      tc.enabled = true
+      toolbar.style.display = ''
+    } else {
+      selectedBoxIndex = null
+      tc.enabled = false
+      toolbar.style.display = 'none'
+    }
+  }
+
+  /** Bake the gizmo-manipulated mesh transform back into config units. */
+  function commitSelectedBox(): void {
+    if (selectedBoxIndex === null) return
+    const mesh = boxMesh(selectedBoxIndex)
+    const base = opts.getRobot().superstructure[selectedBoxIndex]
+    if (!mesh || !base) return
+    const r3 = (v: number) => Number(v.toFixed(3))
+    opts.onBoxUpdate(selectedBoxIndex, {
+      center: { x: r3(mesh.position.x), y: r3(mesh.position.y), z: r3(mesh.position.z) },
+      size: {
+        x: r3(Math.max(0.01, base.size.x * Math.abs(mesh.scale.x))),
+        y: r3(Math.max(0.01, base.size.y * Math.abs(mesh.scale.y))),
+        z: r3(Math.max(0.01, base.size.z * Math.abs(mesh.scale.z))),
+      },
+      yawDeg: Number(((mesh.rotation.z * 180) / Math.PI).toFixed(1)),
+    })
+  }
+
+  function removeSelectedBox(): void {
+    if (selectedBoxIndex === null) return
+    const i = selectedBoxIndex
+    selectBox(null)
+    opts.onBoxRemove(i)
+  }
+
+  tc.addEventListener('dragging-changed', (e) => {
+    ctx.controls.enabled = !(e as unknown as { value: boolean }).value
+    if (!(e as unknown as { value: boolean }).value) commitSelectedBox()
+  })
+
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.target !== document.body) return
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBoxIndex !== null) removeSelectedBox()
+  }
 
   let addArmed = false
   let dragIndex: number | null = null
@@ -137,7 +233,9 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     )
   }
 
-  function surfaceHit(e: PointerEvent): { point: THREE.Vector3; normal: THREE.Vector3 } | null {
+  function surfaceHit(
+    e: PointerEvent,
+  ): { point: THREE.Vector3; normal: THREE.Vector3; objectName: string } | null {
     raycaster.setFromCamera(pointerNdc(e), ctx.camera)
     const hit = raycaster.intersectObjects(robotMeshes(), false)[0]
     if (!hit || !hit.face) return null
@@ -145,7 +243,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     // rotation in the editor, so transforming by the mesh's world matrix
     // yields the robot-frame normal directly (and world point == robot frame).
     const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld)
-    return { point: hit.point, normal }
+    return { point: hit.point, normal, objectName: hit.object.name }
   }
 
   function mountFromHit(hit: { point: THREE.Vector3; normal: THREE.Vector3 }): CameraSpec['mount'] {
@@ -162,6 +260,8 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
 
   function onPointerDown(e: PointerEvent): void {
     if (e.button !== 0) return
+    // Pointer is on (or dragging) the transform gizmo — it owns this event.
+    if (tc.dragging || tc.axis) return
     raycaster.setFromCamera(pointerNdc(e), ctx.camera)
     if (addArmed) {
       const hit = surfaceHit(e)
@@ -182,10 +282,20 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       if (top) {
         dragIndex = handles.children.indexOf(top)
         select(dragIndex)
+        selectBox(null)
         ctx.controls.enabled = false
       }
-    } else if (!surfaceHit(e)) {
-      select(null) // clicked empty space
+      return
+    }
+    const hit = surfaceHit(e)
+    const boxMatch = hit ? /^superstructure-(\d+)$/.exec(hit.objectName ?? '') : null
+    if (boxMatch) {
+      selectBox(Number(boxMatch[1]))
+      select(null)
+    } else if (!hit) {
+      // clicked empty space
+      select(null)
+      selectBox(null)
     }
   }
 
@@ -224,25 +334,37 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
         el().addEventListener('pointerdown', onPointerDown)
         el().addEventListener('pointermove', onPointerMove)
         window.addEventListener('pointerup', onPointerUp)
+        window.addEventListener('keydown', onKeyDown)
       } else {
         el().removeEventListener('pointerdown', onPointerDown)
         el().removeEventListener('pointermove', onPointerMove)
         window.removeEventListener('pointerup', onPointerUp)
+        window.removeEventListener('keydown', onKeyDown)
         dragIndex = null
         addArmed = false
+        selectBox(null)
         el().style.cursor = ''
       }
     },
+    selectBox,
     armAddCamera() {
       addArmed = true
       el().style.cursor = 'crosshair'
     },
     rebuildRobot() {
+      const keepBox = selectedBoxIndex
+      tc.detach()
       scene.remove(robotGroup)
       disposeObject3D(robotGroup)
       robotGroup = buildRobot(opts.getRobot())
       stripBakedCameraMarkers(robotGroup)
       scene.add(robotGroup)
+      // Re-attach the gizmo to the freshly built mesh (old one was disposed).
+      if (keepBox !== null && keepBox < opts.getRobot().superstructure.length) {
+        selectBox(keepBox)
+      } else {
+        selectBox(null)
+      }
     },
   }
 }

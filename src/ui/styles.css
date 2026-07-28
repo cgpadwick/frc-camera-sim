@@ -350,3 +350,29 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 .editor-hints b {
   color: #4fc3f7;
 }
+
+.box-toolbar {
+  position: absolute;
+  top: 56px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  z-index: 12;
+}
+
+.box-toolbar button {
+  font-family: monospace;
+  font-size: 12px;
+  background: #22262e;
+  color: #ccc;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.box-toolbar button.active {
+  background: #3a4150;
+  color: #fff;
+  border-color: #6a7385;
+}
