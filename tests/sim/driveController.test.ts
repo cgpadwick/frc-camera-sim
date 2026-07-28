@@ -122,3 +122,21 @@ describe('createDriveController', () => {
     controller.dispose()
   })
 })
+
+describe('arrow-key rotation aliases', () => {
+  it('ArrowLeft rotates CCW like q', () => {
+    const pose = { x: 5, y: 4, headingRad: 0 }
+    integratePose(pose, new Set(['arrowleft']), 1, 16, 8)
+    expect(pose.headingRad).toBeCloseTo(2.5)
+  })
+  it('ArrowRight rotates CW like e', () => {
+    const pose = { x: 5, y: 4, headingRad: 0 }
+    integratePose(pose, new Set(['arrowright']), 1, 16, 8)
+    expect(pose.headingRad).toBeCloseTo(-2.5)
+  })
+  it('q + ArrowRight cancel', () => {
+    const pose = { x: 5, y: 4, headingRad: 1 }
+    integratePose(pose, new Set(['q', 'arrowright']), 1, 16, 8)
+    expect(pose.headingRad).toBeCloseTo(1)
+  })
+})

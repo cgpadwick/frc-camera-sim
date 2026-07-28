@@ -32,7 +32,9 @@ export function integratePose(
 ): void {
   const vx = (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0)
   const vy = (keys.has('a') ? 1 : 0) - (keys.has('d') ? 1 : 0)
-  const om = (keys.has('q') ? 1 : 0) - (keys.has('e') ? 1 : 0)
+  const om =
+    (keys.has('q') || keys.has('arrowleft') ? 1 : 0) -
+    (keys.has('e') || keys.has('arrowright') ? 1 : 0)
   pose.x = Math.min(fieldLength - FIELD_MARGIN, Math.max(FIELD_MARGIN, pose.x + vx * SPEED * dt))
   pose.y = Math.min(fieldWidth - FIELD_MARGIN, Math.max(FIELD_MARGIN, pose.y + vy * SPEED * dt))
   pose.headingRad += om * TURN * dt
@@ -44,7 +46,10 @@ const hasWindow = typeof window !== 'undefined'
 export function createDriveController(fieldLength: number, fieldWidth: number): DriveController {
   const keys = new Set<string>()
   const down = (e: KeyboardEvent) => {
-    if (!e.repeat && e.target === document.body) keys.add(e.key.toLowerCase())
+    if (e.target !== document.body) return
+    // Arrow keys scroll the page by default — swallow that while driving.
+    if (e.key.startsWith('Arrow')) e.preventDefault()
+    if (!e.repeat) keys.add(e.key.toLowerCase())
   }
   const up = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase())
   if (hasWindow) {
