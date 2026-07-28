@@ -19,6 +19,7 @@ import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
 import { createTabBar } from './ui/tabs'
 import { showFirstRunMarks, showInspectMark, firstSweepPending } from './ui/coachMarks'
+import { createSetupChecklist } from './ui/setupChecklist'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
@@ -260,6 +261,7 @@ async function boot() {
     viewSelect.refresh(config.robot.cameras.map((c) => c.name))
     markSweepStaleIfNeeded()
     refreshWorkflowState()
+    refreshChecklist()
   }
 
   const editor = createRobotEditor(ctx, {
@@ -269,6 +271,7 @@ async function boot() {
       const cam = config.robot.cameras[u.cameraIndex]
       if (!cam) return
       cam.mount = u.mount
+      if (u.commit) cameraAimed = true
       applyEditorRobotChange(u.commit)
     },
     onAddCamera(mount) {
@@ -291,11 +294,13 @@ async function boot() {
     onBoxUpdate(index, box) {
       if (!config.robot.superstructure[index]) return
       config.robot.superstructure[index] = box
+      bodyShapeTouched = true
       applyEditorRobotChange(true)
       editor.rebuildRobot() // normalizes gizmo scale back into box size
     },
     onBoxRemove(index) {
       config.robot.superstructure.splice(index, 1)
+      bodyShapeTouched = true
       applyEditorRobotChange(true)
       editor.rebuildRobot()
     },
@@ -351,6 +356,27 @@ async function boot() {
     app.appendChild(purposeChip)
   }
 
+  // --- Round 7A: guided first-run setup checklist (Build view only) ---
+  const setupChecklist = createSetupChecklist()
+  app.appendChild(setupChecklist.el)
+  setupChecklist.el.style.display = 'none' // shown only in Build (and only until finished)
+  let bodyShapeTouched = false
+  let cameraAimed = false
+  function refreshChecklist(): void {
+    if (setupChecklist.finished()) return
+    setupChecklist.update({
+      bodyShapeTouched,
+      cameraCount: config.robot.cameras.length,
+      cameraAimed,
+      hasSweep: lastSweep !== null,
+    })
+  }
+  setupChecklist.onReadyToAnalyze(() => {
+    // Rows 1–3 done: point at the next move without gating anything.
+    tabs.stepButton(2).classList.add('pulse')
+    setTimeout(() => tabs.stepButton(2).classList.remove('pulse'), 2100)
+  })
+
   const tabs = createTabBar({
     onChange(mode) {
       appMode = mode
@@ -360,8 +386,7 @@ async function boot() {
         savedFieldCam.position.copy(ctx.camera.position)
         savedFieldCam.target.copy(ctx.controls.target)
         ctx.setActiveScene(editor.scene)
-        ctx.camera.position.set(1.6, -1.6, 1.2)
-        ctx.controls.target.set(0, 0, 0.35)
+        editor.frameRobot()
         editor.setActive(true)
       } else {
         editor.setActive(false)
@@ -374,6 +399,8 @@ async function boot() {
         el.style.display = mode === 'robot' ? 'none' : ''
       }
       editorHints.style.display = mode === 'robot' ? '' : 'none'
+      setupChecklist.el.style.display = mode === 'robot' && !setupChecklist.finished() ? '' : 'none'
+      if (mode === 'robot') refreshChecklist()
       // The chip's copy points AT the Robot tab — showing it while already
       // there is nonsense (QA round 5b nit 2).
       purposeChip.style.display = mode === 'robot' ? 'none' : ''
@@ -389,6 +416,7 @@ async function boot() {
       editor.setFrustumFillOpacity(opacity)
     },
     onAddBox() {
+      bodyShapeTouched = true
       config.robot.superstructure.push({
         center: { x: 0, y: 0, z: config.robot.chassisHeightM + 0.15 },
         size: { x: 0.3, y: 0.3, z: 0.3 },
@@ -586,6 +614,7 @@ async function boot() {
           sweepControls.setPrimaryAction('optimize')
           ctx.renderer.domElement.style.cursor = 'crosshair'
           refreshWorkflowState()
+          refreshChecklist()
           showInspectMark(sweepControls.el)
         })
         .catch((e: unknown) => {
@@ -800,13 +829,16 @@ async function boot() {
       // updates on select before the async load resolves, including on a
       // load that ultimately fails), so it is intentionally *not* trusted
       // here — only the robot config is taken from panel edits.
+      const camerasChanged = JSON.stringify(newConfig.robot.cameras) !== JSON.stringify(config.robot.cameras)
       config = { ...newConfig, fieldYear: config.fieldYear }
+      if (camerasChanged && config.robot.cameras.length > 0) cameraAimed = true
       saveConfig(config)
       rebuildRobot()
       editor.rebuildRobot()
       viewSelect.refresh(config.robot.cameras.map((c) => c.name))
       markSweepStaleIfNeeded()
       refreshWorkflowState()
+      refreshChecklist()
     },
     onFieldChange(year) {
       // config.fieldYear is only mutated + persisted inside rebuildField,

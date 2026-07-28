@@ -778,3 +778,80 @@ button:disabled {
 .pulse {
   animation: optimize-pulse 0.7s ease-in-out 3;
 }
+
+/* --- Round 7A: setup checklist card --- */
+
+.setup-checklist {
+  position: absolute;
+  top: 58px;
+  left: 12px;
+  z-index: 11;
+  width: 300px;
+  background: rgba(20, 22, 28, 0.94);
+  border: 1px solid #4fc3f7;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: var(--ui-font);
+  color: #eee;
+}
+
+.setup-checklist-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.setup-checklist-title button {
+  background: transparent;
+  border: none;
+  color: #9aa4b0;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.setup-checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-checklist-list li {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: #9aa4b0;
+}
+
+.setup-checklist-list li.done {
+  color: #6f7a86;
+}
+
+.setup-checklist-list li.done .setup-mark {
+  color: #4caf50;
+}
+
+.setup-checklist-list li.active {
+  color: #eee;
+}
+
+.setup-checklist-list li.active .setup-mark {
+  color: #4fc3f7;
+}
+
+.setup-label {
+  display: block;
+  font-weight: 600;
+}
+
+.setup-hint {
+  display: block;
+  font-size: 12px;
+  color: #b6c0cc;
+  margin-top: 2px;
+}

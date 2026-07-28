@@ -9,6 +9,7 @@ import { normalToYawPitch } from './placementMath'
 import type { SceneCtx } from '../viz/scene'
 
 const EDITOR_POSE = { x: 0, y: 0, headingRad: 0 } // robot sits at the origin, heading +X
+const EDITOR_CONE_PREVIEW_M = 1.5
 
 export interface MountUpdate {
   cameraIndex: number
@@ -51,6 +52,8 @@ export interface RobotEditor {
   setFrustumFillOpacity(opacity: number): void
   /** Rebuild the robot mesh (dims/superstructure changed via the panel). */
   rebuildRobot(): void
+  /** Frame the robot: centered, comfortable distance, ~35° elevation (QA round 7B). */
+  frameRobot(): void
 }
 
 export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): RobotEditor {
@@ -393,7 +396,10 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       syncHandles(robot)
       if (selectedIndex !== null && selectedIndex >= robot.cameras.length) select(null)
       selectionBox?.update() // track the gizmo while it's dragged
-      frustums.update(EDITOR_POSE, robot, opts.getTagSize())
+      // Editor cones are AIM previews, not reach displays — cap the drawn
+      // length so entering Build shows a robot, not a wall of translucent
+      // planes (QA round 7C; the Field view keeps true capped range).
+      frustums.update(EDITOR_POSE, robot, opts.getTagSize(), null, EDITOR_CONE_PREVIEW_M)
     },
     setActive(active) {
       if (active) {
@@ -415,6 +421,26 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     },
     selectBox,
     selectCamera: (index) => select(index),
+    frameRobot() {
+      const robot = opts.getRobot()
+      // Bounding radius from chassis + tallest/widest superstructure extents.
+      let r = Math.hypot(robot.lengthM / 2, robot.widthM / 2)
+      let top = robot.chassisHeightM
+      for (const b of robot.superstructure) {
+        r = Math.max(r, Math.hypot(Math.abs(b.center.x) + b.size.x / 2, Math.abs(b.center.y) + b.size.y / 2))
+        top = Math.max(top, b.center.z + b.size.z / 2)
+      }
+      const dist = Math.max(1.6, r * 3.2)
+      const elev = (35 * Math.PI) / 180
+      const azim = (45 * Math.PI) / 180
+      const targetZ = top / 2
+      ctx.camera.position.set(
+        Math.cos(azim) * Math.cos(elev) * dist,
+        -Math.sin(azim) * Math.cos(elev) * dist,
+        targetZ + Math.sin(elev) * dist,
+      )
+      ctx.controls.target.set(0, 0, targetZ)
+    },
     setFrustumsVisible: (v) => frustums.setVisible(v),
     setFrustumFillOpacity: (o) => frustums.setFillOpacity(o),
     armAddCamera() {

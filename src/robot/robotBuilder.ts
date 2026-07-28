@@ -82,12 +82,17 @@ function addWheelPods(group: THREE.Group, lengthM: number, widthM: number, chass
 }
 
 function addSuperstructure(group: THREE.Group, config: RobotConfig): void {
-  const material = new THREE.MeshLambertMaterial({ color: 0x555b66, transparent: true, opacity: 0.75 })
+  // Low-alpha fill + crisp edge lines so overlapping shapes read as distinct
+  // objects instead of gray fog (QA round 7B materials pass).
+  const material = new THREE.MeshLambertMaterial({ color: 0x66707e, transparent: true, opacity: 0.3 })
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xaab4c2 })
   config.superstructure.forEach((box, i) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.size.x, box.size.y, box.size.z), material)
+    const geometry = new THREE.BoxGeometry(box.size.x, box.size.y, box.size.z)
+    const mesh = new THREE.Mesh(geometry, material)
     mesh.name = `superstructure-${i}`
     mesh.position.set(box.center.x, box.center.y, box.center.z)
     mesh.rotation.z = (box.yawDeg * Math.PI) / 180
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial))
     group.add(mesh)
   })
 }
