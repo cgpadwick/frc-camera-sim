@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
-import { evaluatePose, idealTagCount } from '../../src/core/evaluate'
+import { evaluatePose, idealTagCount, autoIdealRangeM } from '../../src/core/evaluate'
 import type { RobotConfig } from '../../src/core/types'
 
 const layout = parseWpilibLayout(JSON.parse(readFileSync('public/layouts/2026-rebuilt-welded.json', 'utf8')))
@@ -58,5 +58,21 @@ describe('idealTagCount', () => {
     const actual = evaluatePose(pose, robotOne, layout, []).tagCount
     const ideal = idealTagCount(pose.x, pose.y, layout, [], 4)
     expect(ideal).toBeGreaterThanOrEqual(actual)
+  })
+})
+
+describe('autoIdealRangeM', () => {
+  it('no cameras -> 4m fallback', () => {
+    const r: RobotConfig = { lengthM: 1, widthM: 1, chassisHeightM: 0.1, teamNumber: '0', superstructure: [], cameras: [] }
+    expect(autoIdealRangeM(r, 0.1651)).toBe(4)
+  })
+  it('takes the longest camera reach plus its mount offset', () => {
+    const cam = (maxRangeM: number, mx: number, my: number) => ({
+      name: 'c', hfovDeg: 80, vfovDeg: 55, resWidth: 1280, resHeight: 800, maxRangeM,
+      mount: { x: mx, y: my, z: 0.3, rollDeg: 0, pitchDeg: 0, yawDeg: 0 },
+    })
+    const r: RobotConfig = { lengthM: 1, widthM: 1, chassisHeightM: 0.1, teamNumber: '0', superstructure: [],
+      cameras: [cam(3, 0, 0), cam(5, 0.3, 0.4)] }
+    expect(autoIdealRangeM(r, 0.1651)).toBeCloseTo(5.5) // 5 + hypot(0.3, 0.4)
   })
 })

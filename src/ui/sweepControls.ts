@@ -153,16 +153,16 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   idealLabel.className = 'sweep-mode-radio'
   const idealRangeInput = document.createElement('input')
   idealRangeInput.type = 'number'
-  idealRangeInput.min = '0.5'
+  idealRangeInput.min = '0'
   idealRangeInput.step = '0.5'
-  idealRangeInput.value = '4'
+  idealRangeInput.value = '0'
   idealRangeInput.style.width = '3.5em'
-  idealRangeInput.title = 'Ideal-view detection range in meters (applies on the next Run)'
+  idealRangeInput.title = 'Ideal-view detection range in meters. 0 = auto: match the longest camera range, so ideal always covers actual. Applies on the next Run.'
   idealRangeInput.addEventListener('change', () => {
     const v = Number(idealRangeInput.value)
-    if (Number.isFinite(v) && v > 0) opts.onIdealRangeChange(v)
+    if (Number.isFinite(v) && v >= 0) opts.onIdealRangeChange(v)
   })
-  idealLabel.append(document.createTextNode('Ideal range (m)'), idealRangeInput)
+  idealLabel.append(document.createTextNode('Ideal range (m, 0=auto)'), idealRangeInput)
   bar.appendChild(idealLabel)
 
   const legend = document.createElement('div')

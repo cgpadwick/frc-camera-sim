@@ -1,5 +1,5 @@
 import type { RobotPose, RobotConfig, TagLayout, OccluderBox } from './types'
-import { detectTags, robotOccludersInField, segmentHitsBox, SKEW_MAX_RAD, type Detection } from './visibility'
+import { detectTags, robotOccludersInField, segmentHitsBox, maxRangeFor, SKEW_MAX_RAD, type Detection } from './visibility'
 import { vec3, sub, length, normalize, dot, rotateVec, scale, add } from './math'
 
 export interface PoseEvaluation {
@@ -60,4 +60,18 @@ export function countBand(tagCount: number): 'dead' | 'poor' | 'ok' | 'strong' {
   if (tagCount < 2) return 'poor'
   if (tagCount < 3) return 'ok'
   return 'strong'
+}
+
+/**
+ * Auto ideal range: the longest reach any configured camera actually has —
+ * its detection range plus its horizontal mount offset from robot center
+ * (idealTagCount measures from center, cameras measure from their mount).
+ * Guarantees the ideal layer's range never trails the actual cameras, so
+ * actual can't exceed ideal. Falls back to 4 m with no cameras.
+ */
+export function autoIdealRangeM(robot: RobotConfig, tagSize: number): number {
+  if (robot.cameras.length === 0) return 4
+  return Math.max(
+    ...robot.cameras.map((c) => maxRangeFor(c, tagSize) + Math.hypot(c.mount.x, c.mount.y)),
+  )
 }

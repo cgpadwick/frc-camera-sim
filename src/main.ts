@@ -7,7 +7,7 @@ import { tryLoadFieldModel } from './field/fieldModelLoader'
 import { buildRobot } from './robot/robotBuilder'
 import { createDriveController } from './sim/driveController'
 import { DEFAULT_CONFIG } from './core/defaults'
-import { evaluatePose, idealTagCount } from './core/evaluate'
+import { evaluatePose, idealTagCount, autoIdealRangeM } from './core/evaluate'
 import { createFrustumView } from './viz/frustumView'
 import { createTagHighlights } from './viz/tagHighlights'
 import { createHud } from './ui/hud'
@@ -311,7 +311,11 @@ async function boot() {
     allTagIds: number[]
   } | null = null
   let sweepMode: SweepViewMode = 'min'
-  let sweepIdealRangeM = DEFAULT_SWEEP.idealRangeM
+  // 0 = auto: match the longest camera's reach so ideal always >= actual.
+  let sweepIdealRangeM = 0
+  function resolveIdealRangeM(): number {
+    return sweepIdealRangeM > 0 ? sweepIdealRangeM : autoIdealRangeM(config.robot, tagSize)
+  }
   let sweepRunning = false
   // Report baseline: a snapshot of ReportStats from a past sweep, captured via
   // the "Set as baseline" button, compared against in the report when set.
@@ -401,7 +405,7 @@ async function boot() {
     viewManager.update(drive.pose, config.robot)
     frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex())
     tagHighlights.update(ev, config.robot)
-    hud.update(ev, config.robot, idealTagCount(drive.pose.x, drive.pose.y, layout, fieldOccluders, sweepIdealRangeM))
+    hud.update(ev, config.robot, idealTagCount(drive.pose.x, drive.pose.y, layout, fieldOccluders, resolveIdealRangeM()))
   })
 
   const sweepControls = createSweepControls({
@@ -419,7 +423,7 @@ async function boot() {
       sweepControls.setRunning(true)
       sweepControls.setProgress(0)
       sweepControls.clearDetail()
-      sweepInWorker(layout, snapshot.robot, fieldOccluders, { ...DEFAULT_SWEEP, idealRangeM: sweepIdealRangeM }, (frac) => {
+      sweepInWorker(layout, snapshot.robot, fieldOccluders, { ...DEFAULT_SWEEP, idealRangeM: resolveIdealRangeM() }, (frac) => {
         if (sweepGeneration === myGeneration) sweepControls.setProgress(frac)
       })
         .then((result) => {
@@ -451,7 +455,7 @@ async function boot() {
     onIdealRangeChange(rangeM) {
       sweepIdealRangeM = rangeM
       // The shown ideal layer was computed at the old range — flag it.
-      if (lastSweep && lastSweep.result.idealRangeM !== rangeM) sweepControls.setStale(true)
+      if (lastSweep && lastSweep.result.idealRangeM !== resolveIdealRangeM()) sweepControls.setStale(true)
     },
     onModeChange(mode) {
       sweepMode = mode
