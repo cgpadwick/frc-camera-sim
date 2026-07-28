@@ -7,7 +7,7 @@ import { tryLoadFieldModel } from './field/fieldModelLoader'
 import { buildRobot } from './robot/robotBuilder'
 import { createDriveController } from './sim/driveController'
 import { DEFAULT_CONFIG } from './core/defaults'
-import { evaluatePose } from './core/evaluate'
+import { evaluatePose, idealTagCount } from './core/evaluate'
 import { createFrustumView } from './viz/frustumView'
 import { createTagHighlights } from './viz/tagHighlights'
 import { createHud } from './ui/hud'
@@ -401,7 +401,7 @@ async function boot() {
     viewManager.update(drive.pose, config.robot)
     frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex())
     tagHighlights.update(ev, config.robot)
-    hud.update(ev, config.robot)
+    hud.update(ev, config.robot, idealTagCount(drive.pose.x, drive.pose.y, layout, fieldOccluders, sweepIdealRangeM))
   })
 
   const sweepControls = createSweepControls({

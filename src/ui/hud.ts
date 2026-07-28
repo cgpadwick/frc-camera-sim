@@ -22,7 +22,8 @@ function hexColor(n: number): string {
 
 export interface Hud {
   el: HTMLElement
-  update(ev: PoseEvaluation, robot: RobotConfig): void
+  /** `idealCount`: tags an ideal omnidirectional setup would see from here (live idealTagCount) — shown as "seen / ideal". */
+  update(ev: PoseEvaluation, robot: RobotConfig, idealCount?: number): void
 }
 
 /** Fixed-position DOM overlay: big score number (band-colored) + one "<name>: N tags" line per camera. */
@@ -43,8 +44,12 @@ export function createHud(container: HTMLElement): Hud {
 
   return {
     el: root,
-    update(ev, robot) {
-      scoreEl.textContent = `${ev.tagCount} ${ev.tagCount === 1 ? 'tag' : 'tags'}`
+    update(ev, robot, idealCount) {
+      scoreEl.textContent =
+        idealCount === undefined
+          ? `${ev.tagCount} ${ev.tagCount === 1 ? 'tag' : 'tags'}`
+          : `${ev.tagCount} / ${idealCount} tags`
+      scoreEl.title = idealCount === undefined ? '' : 'tags seen now / ideally visible here (omnidirectional, at the Ideal range)'
       scoreEl.style.color = colorForCount(ev.tagCount)
 
       if (cameraLines.length !== robot.cameras.length) {
