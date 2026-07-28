@@ -112,6 +112,17 @@ export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
   const root = document.createElement('div')
   root.className = 'config-panel'
 
+  // Collapse toggle: the panel covers the right third of the viewport, which
+  // gets in the way in camera-POV views. The tab stays visible when collapsed.
+  const toggle = document.createElement('button')
+  toggle.className = 'config-panel-toggle'
+  toggle.textContent = 'Config ✕'
+  toggle.addEventListener('click', () => {
+    const collapsed = root.classList.toggle('collapsed')
+    toggle.textContent = collapsed ? 'Config ☰' : 'Config ✕'
+  })
+  root.appendChild(toggle)
+
   function emitChange(): void {
     opts.onChange(structuredClone(working))
   }

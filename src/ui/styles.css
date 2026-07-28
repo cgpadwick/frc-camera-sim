@@ -244,9 +244,8 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 .view-select {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 110px;
+  left: 12px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -267,4 +266,36 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   border: 1px solid #444;
   border-radius: 4px;
   padding: 3px 6px;
+}
+
+.config-panel-toggle {
+  position: sticky;
+  top: 0;
+  float: right;
+  z-index: 11;
+  font-family: monospace;
+  font-size: 12px;
+  background: #22262e;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.config-panel.collapsed {
+  width: auto;
+  height: auto;
+  background: transparent;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.config-panel.collapsed > :not(.config-panel-toggle) {
+  display: none;
+}
+
+.config-panel.collapsed .config-panel-toggle {
+  pointer-events: auto;
+  float: none;
 }
