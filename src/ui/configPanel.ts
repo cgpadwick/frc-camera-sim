@@ -1,5 +1,5 @@
 import type { SimConfig } from '../core/types'
-import { CAMERA_PRESETS, applyPreset } from './presets'
+import { CAMERA_PRESETS, applyPreset, presetLabelFor } from './presets'
 import { exportConfig, importConfig, KNOWN_FIELD_YEARS } from './configStore'
 import { showToast } from './toast'
 import { CAMERA_COLORS } from '../viz/frustumView'
@@ -377,7 +377,7 @@ export function createConfigPanel(opts: ConfigPanelOptions & ConfigPanelOptionsE
         o.textContent = preset.label
         presetSelect.appendChild(o)
       }
-      presetSelect.value = 'Custom'
+      presetSelect.value = presetLabelFor(cam)
       presetSelect.addEventListener('change', () => {
         const preset = CAMERA_PRESETS.find((p) => p.label === presetSelect.value)!
         Object.assign(cam, applyPreset(cam, preset))

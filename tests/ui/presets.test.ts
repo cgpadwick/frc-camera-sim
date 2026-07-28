@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { CAMERA_PRESETS, applyPreset } from '../../src/ui/presets'
+import { CAMERA_PRESETS, applyPreset, presetLabelFor } from '../../src/ui/presets'
 import { SAMPLE_CAMERAS } from '../../src/core/defaults'
 
 describe('CAMERA_PRESETS', () => {
@@ -35,5 +35,15 @@ describe('applyPreset', () => {
     const preset = CAMERA_PRESETS.find((p) => p.label === 'Custom')!
     const result = applyPreset(spec, preset)
     expect(result).toEqual(spec)
+  })
+})
+
+describe('presetLabelFor', () => {
+  it('matches exact optics to their preset label', () => {
+    const spec = { ...SAMPLE_CAMERAS[0], hfovDeg: 82, vfovDeg: 56, resWidth: 1280, resHeight: 800 }
+    expect(presetLabelFor(spec)).toBe('Limelight 4')
+  })
+  it('falls back to Custom for unmatched optics', () => {
+    expect(presetLabelFor({ ...SAMPLE_CAMERAS[0], hfovDeg: 83 })).toBe('Custom')
   })
 })

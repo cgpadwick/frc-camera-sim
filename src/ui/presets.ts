@@ -40,3 +40,20 @@ export function applyPreset(spec: CameraSpec, preset: CameraPreset): CameraSpec 
     resHeight: preset.resHeight,
   }
 }
+
+/**
+ * Pure: the preset label matching this spec's optics exactly, or 'Custom'.
+ * Lets the dropdown REFLECT the camera instead of hard-resetting to Custom
+ * on every render (which made a successful preset apply look like a no-op).
+ */
+export function presetLabelFor(spec: CameraSpec): string {
+  const hit = CAMERA_PRESETS.find(
+    (p) =>
+      p.label !== CUSTOM_LABEL &&
+      p.hfovDeg === spec.hfovDeg &&
+      p.vfovDeg === spec.vfovDeg &&
+      p.resWidth === spec.resWidth &&
+      p.resHeight === spec.resHeight,
+  )
+  return hit ? hit.label : CUSTOM_LABEL
+}
