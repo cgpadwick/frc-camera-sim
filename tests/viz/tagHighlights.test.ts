@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { highlightColorFor, createTagHighlights } from '../../src/viz/tagHighlights'
-import { CAMERA_COLORS } from '../../src/viz/frustumView'
 import { DEFAULT_CONFIG } from '../../src/core/defaults'
 import type { PoseEvaluation } from '../../src/core/evaluate'
 import type { Detection } from '../../src/core/visibility'
@@ -14,16 +13,11 @@ describe('highlightColorFor', () => {
   it('0 detecting cameras -> hidden (null)', () => {
     expect(highlightColorFor([])).toBeNull()
   })
-  it('1 detecting camera -> that camera color', () => {
-    expect(highlightColorFor([0])).toBe(CAMERA_COLORS[0])
-    expect(highlightColorFor([1])).toBe(CAMERA_COLORS[1])
-  })
-  it('2+ detecting cameras -> white', () => {
-    expect(highlightColorFor([0, 1])).toBe(0xffffff)
-    expect(highlightColorFor([0, 1, 2])).toBe(0xffffff)
-  })
-  it('camera index wraps around CAMERA_COLORS length', () => {
-    expect(highlightColorFor([CAMERA_COLORS.length])).toBe(CAMERA_COLORS[0])
+  it('any detection -> green', () => {
+    expect(highlightColorFor([0])).toBe(0x2ecc40)
+    expect(highlightColorFor([1])).toBe(0x2ecc40)
+    expect(highlightColorFor([0, 1])).toBe(0x2ecc40)
+    expect(highlightColorFor([0, 1, 2])).toBe(0x2ecc40)
   })
 })
 
@@ -47,7 +41,7 @@ describe('createTagHighlights', () => {
     expect(ring).toBeUndefined()
   })
 
-  it('shows a ring colored by the single detecting camera', () => {
+  it('shows a green ring for a detected tag', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
     const ev: PoseEvaluation = { score: 25, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
@@ -55,10 +49,10 @@ describe('createTagHighlights', () => {
     const ring = fieldGroup.getObjectByName('tag-1-ring') as THREE.Mesh
     expect(ring).toBeTruthy()
     expect(ring.visible).toBe(true)
-    expect((ring.material as THREE.MeshBasicMaterial).color.getHex()).toBe(CAMERA_COLORS[0])
+    expect((ring.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x2ecc40)
   })
 
-  it('shows white when 2+ cameras detect the same tag', () => {
+  it('stays green when 2+ cameras detect the same tag', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
     const ev: PoseEvaluation = {
@@ -70,7 +64,7 @@ describe('createTagHighlights', () => {
     }
     highlights.update(ev, DEFAULT_CONFIG.robot)
     const ring = fieldGroup.getObjectByName('tag-1-ring') as THREE.Mesh
-    expect((ring.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0xffffff)
+    expect((ring.material as THREE.MeshBasicMaterial).color.getHex()).toBe(0x2ecc40)
   })
 
   it('hides the ring again once the tag drops out of view (visibility toggled, not removed)', () => {

@@ -1,9 +1,8 @@
 import * as THREE from 'three'
 import type { PoseEvaluation } from '../core/evaluate'
 import type { RobotConfig } from '../core/types'
-import { CAMERA_COLORS } from './frustumView'
 
-const WHITE = 0xffffff
+const DETECTED_GREEN = 0x2ecc40
 const RING_INNER_M = 0.12
 const RING_OUTER_M = 0.16
 const RING_OFFSET_M = 0.01
@@ -12,13 +11,13 @@ const EMPTY: readonly number[] = []
 /**
  * Pure: given the indices of cameras currently detecting one tag, decide
  * the highlight ring's color, or null if it should be hidden. 0 detections
- * -> hidden; exactly 1 -> that camera's color (CAMERA_COLORS, wraparound);
- * 2+ -> white (ambiguous which camera "owns" the tag).
+ * -> hidden; any detection -> green ("this tag is contributing to
+ * localization"). Which camera sees it is readable from the frustum
+ * colors/HUD instead.
  */
 export function highlightColorFor(cameraIndices: readonly number[]): number | null {
   if (cameraIndices.length === 0) return null
-  if (cameraIndices.length === 1) return CAMERA_COLORS[cameraIndices[0] % CAMERA_COLORS.length]
-  return WHITE
+  return DETECTED_GREEN
 }
 
 export interface TagHighlights {
@@ -45,7 +44,7 @@ export function createTagHighlights(fieldGroup: THREE.Group): TagHighlights {
     const quad = fieldGroup.getObjectByName(`tag-${tagId}`) as THREE.Mesh | undefined
     if (!quad) return null
     const geometry = new THREE.RingGeometry(RING_INNER_M, RING_OUTER_M)
-    const material = new THREE.MeshBasicMaterial({ color: WHITE, side: THREE.DoubleSide, transparent: true })
+    const material = new THREE.MeshBasicMaterial({ color: DETECTED_GREEN, side: THREE.DoubleSide, transparent: true })
     const ring = new THREE.Mesh(geometry, material)
     ring.name = `tag-${tagId}-ring`
     ring.visible = false
