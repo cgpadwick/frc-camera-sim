@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { CAMERA_PRESETS, applyPreset } from '../../src/ui/presets'
-import { DEFAULT_CONFIG } from '../../src/core/defaults'
+import { SAMPLE_CAMERAS } from '../../src/core/defaults'
 
 describe('CAMERA_PRESETS', () => {
   it('has the 6 required presets with exact specs', () => {
@@ -18,7 +18,7 @@ describe('CAMERA_PRESETS', () => {
 })
 
 describe('applyPreset', () => {
-  const spec = DEFAULT_CONFIG.robot.cameras[0]
+  const spec = SAMPLE_CAMERAS[0]
 
   it('fills FOV/res from a named preset, leaving other fields untouched', () => {
     const preset = CAMERA_PRESETS.find((p) => p.label === 'Limelight 4')!

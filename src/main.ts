@@ -207,6 +207,7 @@ async function boot() {
       editorHints.style.display = mode === 'robot' ? '' : 'none'
     },
     onAddCamera: () => editor.armAddCamera(),
+    onToggleFrustums: (visible) => editor.setFrustumsVisible(visible),
     onAddBox() {
       config.robot.superstructure.push({
         center: { x: 0, y: 0, z: config.robot.chassisHeightM + 0.15 },

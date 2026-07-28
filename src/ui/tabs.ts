@@ -10,6 +10,7 @@ export function createTabBar(opts: {
   onChange(mode: AppMode): void
   onAddCamera(): void
   onAddBox(): void
+  onToggleFrustums(visible: boolean): void
 }): TabBar {
   const el = document.createElement('div')
   el.className = 'tab-bar'
@@ -18,6 +19,8 @@ export function createTabBar(opts: {
   const buttons = new Map<AppMode, HTMLButtonElement>()
   const addBtn = document.createElement('button')
   const addBoxBtn = document.createElement('button')
+  const frustumBtn = document.createElement('button')
+  let frustumsVisible = true
 
   function select(next: AppMode): void {
     if (next === mode) return
@@ -25,6 +28,7 @@ export function createTabBar(opts: {
     for (const [m, b] of buttons) b.classList.toggle('active', m === mode)
     addBtn.style.display = mode === 'robot' ? '' : 'none'
     addBoxBtn.style.display = mode === 'robot' ? '' : 'none'
+    frustumBtn.style.display = mode === 'robot' ? '' : 'none'
     opts.onChange(mode)
   }
 
@@ -48,6 +52,17 @@ export function createTabBar(opts: {
   addBoxBtn.style.display = 'none'
   addBoxBtn.addEventListener('click', opts.onAddBox)
   el.appendChild(addBoxBtn)
+
+  frustumBtn.textContent = '👁 Frustums'
+  frustumBtn.title = 'Show/hide camera view cones while editing'
+  frustumBtn.style.display = 'none'
+  frustumBtn.classList.add('active')
+  frustumBtn.addEventListener('click', () => {
+    frustumsVisible = !frustumsVisible
+    frustumBtn.classList.toggle('active', frustumsVisible)
+    opts.onToggleFrustums(frustumsVisible)
+  })
+  el.appendChild(frustumBtn)
 
   return { el, current: () => mode }
 }

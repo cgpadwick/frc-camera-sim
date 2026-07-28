@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { parseConfig, occluderUrlForYear, saveConfig, loadConfig, STORAGE_KEY } from '../../src/ui/configStore'
-import { DEFAULT_CONFIG } from '../../src/core/defaults'
+import { DEFAULT_CONFIG, SAMPLE_CAMERAS } from '../../src/core/defaults'
+
+const CONFIG_WITH_CAMERAS = { ...DEFAULT_CONFIG, robot: { ...DEFAULT_CONFIG.robot, cameras: SAMPLE_CAMERAS } }
 
 describe('parseConfig', () => {
   it('accepts a round-tripped DEFAULT_CONFIG', () => {
@@ -19,41 +21,41 @@ describe('parseConfig', () => {
   })
 
   it('rejects a non-numeric hfovDeg with a readable message', () => {
-    const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const bad = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     bad.robot.cameras[0].hfovDeg = 'x'
     expect(() => parseConfig(bad)).toThrow(/hfovDeg/)
   })
 
   it('rejects negative robot dims', () => {
-    const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const bad = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     bad.robot.lengthM = -1
     expect(() => parseConfig(bad)).toThrow(/lengthM/)
   })
 
   it('rejects a zero chassis height', () => {
-    const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const bad = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     bad.robot.chassisHeightM = 0
     expect(() => parseConfig(bad)).toThrow(/chassisHeightM/)
   })
 
   it('rejects missing mount fields', () => {
-    const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const bad = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     delete bad.robot.cameras[0].mount.yawDeg
     expect(() => parseConfig(bad)).toThrow(/mount.*yawDeg|yawDeg/)
   })
 
   it('accepts a null maxRangeM and rejects a non-numeric one', () => {
-    const ok = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const ok = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     ok.robot.cameras[0].maxRangeM = null
     expect(() => parseConfig(ok)).not.toThrow()
 
-    const bad = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const bad = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     bad.robot.cameras[0].maxRangeM = 'far'
     expect(() => parseConfig(bad)).toThrow(/maxRangeM/)
   })
 
   it('does not block on non-positive FOV (soft warning territory, not a hard error)', () => {
-    const cfg = JSON.parse(JSON.stringify(DEFAULT_CONFIG))
+    const cfg = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
     cfg.robot.cameras[0].hfovDeg = -5
     expect(() => parseConfig(cfg)).not.toThrow()
   })

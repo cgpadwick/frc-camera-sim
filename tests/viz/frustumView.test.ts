@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { frustumCorners, CAMERA_COLORS, createFrustumView } from '../../src/viz/frustumView'
-import { DEFAULT_CONFIG } from '../../src/core/defaults'
+import { DEFAULT_CONFIG, SAMPLE_CAMERAS } from '../../src/core/defaults'
 import { maxRangeFor } from '../../src/core/visibility'
 import type { RobotPose } from '../../src/core/types'
 
@@ -47,17 +47,19 @@ describe('CAMERA_COLORS', () => {
 })
 
 describe('createFrustumView', () => {
-  const pose: RobotPose = { x: 8, y: 4, headingRad: 0 }
+  const SAMPLE_ROBOT = { ...DEFAULT_CONFIG.robot, cameras: SAMPLE_CAMERAS }
+
+const pose: RobotPose = { x: 8, y: 4, headingRad: 0 }
 
   it('builds one LineSegments per configured camera, colored by CAMERA_COLORS', () => {
     const scene = new THREE.Scene()
     const view = createFrustumView(scene)
-    view.update(pose, DEFAULT_CONFIG.robot, 0.1651)
+    view.update(pose, SAMPLE_ROBOT, 0.1651)
     const root = scene.getObjectByName('frustums')!
     expect(root).toBeTruthy()
     const lineSegments: THREE.LineSegments[] = []
     root.traverse((o) => { if (o instanceof THREE.LineSegments) lineSegments.push(o) })
-    expect(lineSegments).toHaveLength(DEFAULT_CONFIG.robot.cameras.length)
+    expect(lineSegments).toHaveLength(SAMPLE_ROBOT.cameras.length)
     lineSegments.forEach((ls, i) => {
       const mat = ls.material as THREE.LineBasicMaterial
       expect(mat.color.getHex()).toBe(CAMERA_COLORS[i % CAMERA_COLORS.length])
@@ -67,8 +69,8 @@ describe('createFrustumView', () => {
   it('rebuilds when camera count changes', () => {
     const scene = new THREE.Scene()
     const view = createFrustumView(scene)
-    view.update(pose, DEFAULT_CONFIG.robot, 0.1651)
-    const fewer = { ...DEFAULT_CONFIG.robot, cameras: DEFAULT_CONFIG.robot.cameras.slice(0, 1) }
+    view.update(pose, SAMPLE_ROBOT, 0.1651)
+    const fewer = { ...SAMPLE_ROBOT, cameras: SAMPLE_ROBOT.cameras.slice(0, 1) }
     view.update(pose, fewer, 0.1651)
     const root = scene.getObjectByName('frustums')!
     const lineSegments: THREE.LineSegments[] = []
@@ -79,7 +81,7 @@ describe('createFrustumView', () => {
   it('positions each frustum group at its camera field pose (not the origin)', () => {
     const scene = new THREE.Scene()
     const view = createFrustumView(scene)
-    view.update(pose, DEFAULT_CONFIG.robot, 0.1651)
+    view.update(pose, SAMPLE_ROBOT, 0.1651)
     const root = scene.getObjectByName('frustums')!
     // The front camera is mounted forward of the robot origin, so its world
     // x should be greater than the robot pose x.
@@ -91,8 +93,8 @@ describe('createFrustumView', () => {
     const scene = new THREE.Scene()
     const view = createFrustumView(scene)
     const robotA = {
-      ...DEFAULT_CONFIG.robot,
-      cameras: [{ ...DEFAULT_CONFIG.robot.cameras[0], hfovDeg: 90, vfovDeg: 60 }],
+      ...SAMPLE_ROBOT,
+      cameras: [{ ...SAMPLE_ROBOT.cameras[0], hfovDeg: 90, vfovDeg: 60 }],
     }
     view.update(pose, robotA, 0.1651)
     const root = scene.getObjectByName('frustums')!
@@ -100,8 +102,8 @@ describe('createFrustumView', () => {
 
     // Same camera count (no rebuild trigger), but a different FOV.
     const robotB = {
-      ...DEFAULT_CONFIG.robot,
-      cameras: [{ ...DEFAULT_CONFIG.robot.cameras[0], hfovDeg: 40, vfovDeg: 20 }],
+      ...SAMPLE_ROBOT,
+      cameras: [{ ...SAMPLE_ROBOT.cameras[0], hfovDeg: 40, vfovDeg: 20 }],
     }
     view.update(pose, robotB, 0.1651)
     const after = (root.children[0].children[0] as THREE.LineSegments).geometry.attributes.position.array

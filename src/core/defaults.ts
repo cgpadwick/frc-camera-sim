@@ -1,7 +1,34 @@
-import type { SimConfig } from './types'
+import type { SimConfig, CameraSpec } from './types'
 
 const CHASSIS_HEIGHT_M = 0.13
 const SUPERSTRUCTURE_HEIGHT_M = 0.8
+
+/**
+ * Example camera pair (front + rear-left OV9281s). Not part of
+ * DEFAULT_CONFIG — a fresh session starts camera-less so the robot editor
+ * is the obvious "add your cameras" path — but kept for tests and any
+ * future "load example setup" affordance.
+ */
+export const SAMPLE_CAMERAS: CameraSpec[] = [
+  {
+    name: 'front',
+    hfovDeg: 75,
+    vfovDeg: 47,
+    resWidth: 1280,
+    resHeight: 800,
+    maxRangeM: null,
+    mount: { x: 0.32, y: 0, z: 0.25, rollDeg: 0, pitchDeg: 10, yawDeg: 0 },
+  },
+  {
+    name: 'rear-left',
+    hfovDeg: 75,
+    vfovDeg: 47,
+    resWidth: 1280,
+    resHeight: 800,
+    maxRangeM: null,
+    mount: { x: -0.32, y: 0.32, z: 0.25, rollDeg: 0, pitchDeg: 15, yawDeg: 160 },
+  },
+]
 
 export const DEFAULT_CONFIG: SimConfig = {
   fieldYear: '2026-rebuilt-welded',
@@ -18,25 +45,7 @@ export const DEFAULT_CONFIG: SimConfig = {
         yawDeg: 0,
       },
     ],
-    cameras: [
-      {
-        name: 'front',
-        hfovDeg: 75,
-        vfovDeg: 47,
-        resWidth: 1280,
-        resHeight: 800,
-        maxRangeM: null,
-        mount: { x: 0.32, y: 0, z: 0.25, rollDeg: 0, pitchDeg: 10, yawDeg: 0 },
-      },
-      {
-        name: 'rear-left',
-        hfovDeg: 75,
-        vfovDeg: 47,
-        resWidth: 1280,
-        resHeight: 800,
-        maxRangeM: null,
-        mount: { x: -0.32, y: 0.32, z: 0.25, rollDeg: 0, pitchDeg: 15, yawDeg: 160 },
-      },
-    ],
+    // Fresh sessions start with no cameras — add them in the Robot editor.
+    cameras: [],
   },
 }

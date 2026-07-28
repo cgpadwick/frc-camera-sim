@@ -41,6 +41,8 @@ export interface RobotEditor {
   armAddCamera(): void
   /** Select a superstructure box (gizmo attaches); null deselects. */
   selectBox(index: number | null): void
+  /** Show/hide the editor's frustum previews. */
+  setFrustumsVisible(visible: boolean): void
   /** Rebuild the robot mesh (dims/superstructure changed via the panel). */
   rebuildRobot(): void
 }
@@ -347,6 +349,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       }
     },
     selectBox,
+    setFrustumsVisible: (v) => frustums.setVisible(v),
     armAddCamera() {
       addArmed = true
       el().style.cursor = 'crosshair'

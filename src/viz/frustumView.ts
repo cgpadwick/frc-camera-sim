@@ -90,6 +90,8 @@ function disposeCameraFrustum(entry: CameraFrustum): void {
 export interface FrustumView {
   /** `hiddenIndex`: camera whose wireframe is hidden this frame (POV view renders from inside it). */
   update(robotPose: RobotPose, robot: RobotConfig, tagSize: number, hiddenIndex?: number | null): void
+  /** Show/hide all frustum wireframes (robot editor declutter toggle). */
+  setVisible(visible: boolean): void
 }
 
 /** Live wireframe camera frustums, one per configured camera, reparented under a 'frustums' group. */
@@ -112,6 +114,9 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
   }
 
   return {
+    setVisible(visible) {
+      root.visible = visible
+    },
     update(robotPose, robot, tagSize, hiddenIndex = null) {
       if (cameras.length !== robot.cameras.length) rebuild(robot.cameras)
       robot.cameras.forEach((spec, i) => {
