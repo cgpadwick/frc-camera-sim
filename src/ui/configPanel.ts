@@ -1,6 +1,6 @@
 import type { SimConfig } from '../core/types'
 import { CAMERA_PRESETS, applyPreset } from './presets'
-import { exportConfig, importConfig } from './configStore'
+import { exportConfig, importConfig, KNOWN_FIELD_YEARS } from './configStore'
 import { showToast } from './toast'
 
 export interface ConfigPanelOptions {
@@ -9,7 +9,7 @@ export interface ConfigPanelOptions {
   onFieldChange(year: string): void
 }
 
-const FIELD_YEARS = ['2026-rebuilt-welded', '2025-reefscape-welded']
+
 
 function heading(text: string): HTMLHeadingElement {
   const h = document.createElement('h3')
@@ -167,7 +167,7 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     // --- Field year ---
     root.appendChild(heading('Field'))
     const fieldSelect = document.createElement('select')
-    for (const year of FIELD_YEARS) {
+    for (const year of KNOWN_FIELD_YEARS) {
       const o = document.createElement('option')
       o.value = year
       // Only the 2026 field ships a 3D model; be upfront in the label so the
@@ -372,7 +372,7 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
         }),
       )
       item.appendChild(
-        numberField('pitchDeg', cam.mount.pitchDeg, 1, (v) => {
+        numberField('pitchDeg (+down/−up)', cam.mount.pitchDeg, 1, (v) => {
           cam.mount.pitchDeg = v
           emitChange()
         }),

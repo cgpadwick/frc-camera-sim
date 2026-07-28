@@ -571,10 +571,16 @@ async function boot() {
       sweepControls.setOptimizing('Optimizing…')
       const myGeneration = sweepGeneration
       optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
-        sweepControls.setOptimizing(`Optimizing… ${Math.round((100 * p.evals) / p.totalEvals)}% · best ≈${p.bestWorstPct.toFixed(0)}`)
+        sweepControls.setOptimizing(`Optimizing… ${p.evals.toLocaleString()}/${p.totalEvals.toLocaleString()} mounts (${Math.round((100 * p.evals) / p.totalEvals)}%) · best ≈${p.bestWorstPct.toFixed(0)}`)
       })
       optimizeHandle.promise
         .then(async (res) => {
+          const identical =
+            JSON.stringify(res.cameras.map((c) => c.mount)) === JSON.stringify(config.robot.cameras.map((c) => c.mount))
+          if (identical) {
+            showToast('Optimizer searched the mount space but found nothing better than your current setup — no proposal to apply.', 8000)
+            return
+          }
           const proposalRobot: RobotConfig = { ...structuredClone(config.robot), cameras: res.cameras }
           sweepControls.setOptimizing('Scoring proposal…')
           const full = await sweepInWorker(
@@ -629,7 +635,7 @@ async function boot() {
       sweepControls.setScore(sc ? { ...sc, idealRangeM: lastSweep.result.idealRangeM } : null)
       sweepControls.setStale(false)
       clearProposal()
-      showToast('Applied optimized camera mounts.', 10000, undefined, {
+      showToast('Applied optimized camera mounts.', 30000, undefined, {
         label: 'Undo',
         onClick() {
           config.robot.cameras = prevCameras

@@ -1,5 +1,8 @@
 import type { CameraSpec, OccluderBox, RobotConfig, SimConfig, Vec3 } from '../core/types'
 
+/** Single source of truth for selectable fields (dropdown + import validation). */
+export const KNOWN_FIELD_YEARS = ['2026-rebuilt-welded', '2025-reefscape-welded'] as const
+
 export const STORAGE_KEY = 'frc-camera-sim.config'
 export const EXPORT_FILENAME = 'camera-sim-config.json'
 
@@ -109,8 +112,12 @@ export function parseConfig(json: unknown): SimConfig {
   let trustedRangeM: number | null = 5
   if (j.trustedRangeM === null) trustedRangeM = null
   else if (j.trustedRangeM !== undefined) trustedRangeM = positiveNum(j.trustedRangeM, 'trustedRangeM')
+  const fieldYear = str(j.fieldYear, 'fieldYear')
+  if (!(KNOWN_FIELD_YEARS as readonly string[]).includes(fieldYear)) {
+    throw new Error(`Config invalid: unknown fieldYear "${fieldYear}" (known: ${KNOWN_FIELD_YEARS.join(', ')})`)
+  }
   return {
-    fieldYear: str(j.fieldYear, 'fieldYear'),
+    fieldYear,
     trustedRangeM,
     robot: parseRobotConfig(j.robot, 'robot'),
   }

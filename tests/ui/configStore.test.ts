@@ -129,3 +129,18 @@ describe('loadConfig corrupt-vs-absent distinction', () => {
     })
   })
 })
+
+describe('fieldYear whitelist (QA round 2 issue 5)', () => {
+  it('rejects an unknown fieldYear with a readable message naming known fields', () => {
+    const bad = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
+    bad.fieldYear = '9999-unknown-field'
+    expect(() => parseConfig(bad)).toThrow(/unknown fieldYear "9999-unknown-field".*2026-rebuilt-welded/)
+  })
+  it('accepts both known field years', () => {
+    for (const year of ['2026-rebuilt-welded', '2025-reefscape-welded']) {
+      const ok = JSON.parse(JSON.stringify(CONFIG_WITH_CAMERAS))
+      ok.fieldYear = year
+      expect(() => parseConfig(ok)).not.toThrow()
+    }
+  })
+})

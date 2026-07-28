@@ -83,3 +83,25 @@ describe('povAspect', () => {
     expect(recoveredHfovDeg).toBeCloseTo(75, 10)
   })
 })
+
+describe('POV pitch sign ground truth (QA round 2 hypothesis check)', () => {
+  const specWithPitch = (pitchDeg: number): CameraSpec => ({
+    name: 'p', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+    mount: { x: 0, y: 0, z: 0.45, rollDeg: 0, pitchDeg, yawDeg: 0 },
+  })
+  it('mount pitch -15 (up) renders a POV looking UP (+z forward component)', () => {
+    const pose = cameraFieldPose({ x: 0, y: 0, headingRad: 0 }, specWithPitch(-15))
+    const q = new THREE.Quaternion(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w)
+      .multiply(OPTICAL_TO_THREE)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
+    expect(forward.z).toBeCloseTo(Math.sin((15 * Math.PI) / 180), 6)
+    expect(forward.x).toBeCloseTo(Math.cos((15 * Math.PI) / 180), 6)
+  })
+  it('mount pitch +45 (down) renders a POV looking DOWN (-z forward component)', () => {
+    const pose = cameraFieldPose({ x: 0, y: 0, headingRad: 0 }, specWithPitch(45))
+    const q = new THREE.Quaternion(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w)
+      .multiply(OPTICAL_TO_THREE)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(q)
+    expect(forward.z).toBeCloseTo(-Math.sin((45 * Math.PI) / 180), 6)
+  })
+})
