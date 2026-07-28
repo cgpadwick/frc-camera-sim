@@ -54,7 +54,20 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   scene.add(grid)
   scene.add(new THREE.AxesHelper(0.5))
 
+  /**
+   * buildRobot bakes `cam-<i>` marker gizmos into the robot group; in the
+   * editor those would ghost at stale positions next to the live drag
+   * handles (which are the markers here). Hide them, and keep them out of
+   * surface raycasts so a camera can't be "mounted" onto another camera.
+   */
+  function stripBakedCameraMarkers(group: THREE.Group): void {
+    for (const child of group.children) {
+      if (/^cam-\d+$/.test(child.name)) child.visible = false
+    }
+  }
+
   let robotGroup = buildRobot(opts.getRobot())
+  stripBakedCameraMarkers(robotGroup)
   scene.add(robotGroup)
 
   const handles = new THREE.Group()
@@ -86,7 +99,8 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   function robotMeshes(): THREE.Object3D[] {
     const out: THREE.Object3D[] = []
     robotGroup.traverse((c) => {
-      if ((c as THREE.Mesh).isMesh) out.push(c)
+      // visible check also skips the hidden baked-in camera markers.
+      if ((c as THREE.Mesh).isMesh && c.visible && (!c.parent || c.parent.visible)) out.push(c)
     })
     return out
   }
@@ -227,6 +241,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       scene.remove(robotGroup)
       disposeObject3D(robotGroup)
       robotGroup = buildRobot(opts.getRobot())
+      stripBakedCameraMarkers(robotGroup)
       scene.add(robotGroup)
     },
   }
