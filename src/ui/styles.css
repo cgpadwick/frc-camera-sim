@@ -331,3 +331,22 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   border-radius: 4px;
   background: rgba(79, 195, 247, 0.08);
 }
+
+.editor-hints {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #ddd;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 10px 14px;
+  border-radius: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.editor-hints b {
+  color: #4fc3f7;
+}

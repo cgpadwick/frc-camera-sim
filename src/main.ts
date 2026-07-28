@@ -154,6 +154,22 @@ async function boot() {
     },
   })
 
+  // Instructions overlay for the robot editor (visible only in robot mode).
+  const editorHints = document.createElement('div')
+  editorHints.className = 'editor-hints'
+  editorHints.innerHTML = [
+    '<b>Robot editor</b>',
+    '🖱 <b>Drag</b> a camera to slide it across the robot',
+    '📐 It aims out of whatever face it sits on',
+    '➕ <b>Add camera</b>, then click a spot on the robot',
+    '🎯 <b>Click</b> a camera to edit its numbers in the panel',
+    '🌀 Drag empty space to orbit, scroll to zoom',
+  ]
+    .map((l) => `<div>${l}</div>`)
+    .join('')
+  editorHints.style.display = 'none'
+  app.appendChild(editorHints)
+
   const tabs = createTabBar({
     onChange(mode) {
       appMode = mode
@@ -171,10 +187,11 @@ async function boot() {
         ctx.camera.position.copy(savedFieldCam.position)
         ctx.controls.target.copy(savedFieldCam.target)
       }
-      // Field-only chrome hides in robot mode.
+      // Field-only chrome hides in robot mode; editor hints show there.
       for (const el of [viewSelect.el, sweepControls.el, hud.el]) {
         el.style.display = mode === 'robot' ? 'none' : ''
       }
+      editorHints.style.display = mode === 'robot' ? '' : 'none'
     },
     onAddCamera: () => editor.armAddCamera(),
   })
