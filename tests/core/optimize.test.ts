@@ -72,3 +72,19 @@ describe('optimizeCameraMounts', () => {
     expect(result.evals).toBeLessThan(10)
   })
 })
+
+describe('fast mask path parity', () => {
+  // The optimizer's inlined visibility must agree with detectTags exactly.
+  // Exercised indirectly: a 1-round greedy run whose reported score must be
+  // reproducible by the reference objectiveScore on the returned cameras.
+  it('returned score matches reference scoring of returned cameras', () => {
+    const result = optimizeCameraMounts(robot, layout, [], {
+      sweepParams,
+      yawOffsetsDeg: [-30, 0, 30],
+      pitchOffsetsDeg: [0, 15],
+      rounds: 1,
+    })
+    const reference = objectiveScore({ ...robot, cameras: result.cameras }, layout, [], sweepParams)
+    expect(result.score).toBeCloseTo(reference, 6)
+  })
+})
