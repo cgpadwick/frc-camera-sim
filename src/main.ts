@@ -420,6 +420,10 @@ async function boot() {
   }
 
   function markSweepStaleIfNeeded(): void {
+    // Any config drift invalidates an open optimizer proposal too — it was
+    // computed against the previous config/range and comparing against it
+    // would silently mix worlds.
+    clearProposal()
     if (!lastSweep) return
     sweepControls.setStale(JSON.stringify(config) !== JSON.stringify(lastSweep.config))
   }
@@ -486,6 +490,7 @@ async function boot() {
     initialTrustedRangeM: config.trustedRangeM,
     onRun() {
       if (sweepRunning) return
+      clearProposal() // a fresh sweep supersedes any open A/B session
       sweepRunning = true
       const myGeneration = ++sweepGeneration
       // Snapshot the config BEFORE dispatch, not at resolve time: the worker
