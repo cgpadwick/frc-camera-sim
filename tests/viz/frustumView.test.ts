@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { frustumCorners, frustumFarCorner, CAMERA_COLORS, createFrustumView } from '../../src/viz/frustumView'
+import { frustumCorners, sphericalCapPoint, CAMERA_COLORS, createFrustumView } from '../../src/viz/frustumView'
 import { DEFAULT_CONFIG, SAMPLE_CAMERAS } from '../../src/core/defaults'
 import { maxRangeFor } from '../../src/core/visibility'
 import type { RobotPose } from '../../src/core/types'
@@ -118,25 +118,38 @@ const pose: RobotPose = { x: 8, y: 4, headingRad: 0 }
     // First 8 floats are the 4 near(0,0,0)->far edges: [0,0,0, dir*range] x4.
     for (let i = 0; i < 4; i++) {
       const base = i * 6 + 3 // skip the (0,0,0) near vertex, land on the far vertex
-      const c = frustumFarCorner(expectedDirs[i], range)
-      expect(after[base]).toBeCloseTo(c.x, 5)
-      expect(after[base + 1]).toBeCloseTo(c.y, 5)
-      expect(after[base + 2]).toBeCloseTo(c.z, 5)
+      expect(after[base]).toBeCloseTo(expectedDirs[i].x * range, 5)
+      expect(after[base + 1]).toBeCloseTo(expectedDirs[i].y * range, 5)
+      expect(after[base + 2]).toBeCloseTo(expectedDirs[i].z * range, 5)
     }
   })
 })
 
-describe('frustumFarCorner (QA round 8.3 — planar far face at boresight range)', () => {
-  it('far face sits at exactly x = range for every corner', () => {
-    for (const d of frustumCorners(75, 47)) {
-      expect(frustumFarCorner(d, 4).x).toBeCloseTo(4, 9)
+
+describe('sphericalCapPoint (QA round 8.3 v2 — the drawn far surface IS the detection sphere)', () => {
+  it('every sampled far point sits at exactly the detection distance', () => {
+    for (const u of [-1, -0.5, 0, 0.5, 1]) {
+      for (const v of [-1, -0.5, 0, 0.5, 1]) {
+        const p = sphericalCapPoint(u, v, 75, 47, 4)
+        expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(4, 9)
+      }
     }
   })
-  it('a boresight tag just inside the detection range is inside the drawn cone', () => {
-    // Old spherical scaling put the 75° far face at ~range/1.33 ≈ 3.0m; a tag
-    // at 3.9m read as outside the cone while detected. Planar face fixes it.
-    const corners = frustumCorners(75, 47).map((d) => frustumFarCorner(d, 4))
-    const minFaceX = Math.min(...corners.map((c) => c.x))
-    expect(minFaceX).toBeGreaterThanOrEqual(3.9)
+  it('boresight tip is at (range, 0, 0) — no center shortfall', () => {
+    const p = sphericalCapPoint(0, 0, 75, 47, 4)
+    expect(p.x).toBeCloseTo(4, 9)
+    expect(p.y).toBeCloseTo(0, 9)
+    expect(p.z).toBeCloseTo(0, 9)
+  })
+  it('corners coincide with the frustumCorners directions at spherical range — no corner overdraw', () => {
+    const dirs = frustumCorners(75, 47)
+    // frustumCorners order: (+,+), (+,-), (-,-), (-,+) in (y,z) signs = (u,v)
+    const uv: [number, number][] = [[1, 1], [1, -1], [-1, -1], [-1, 1]]
+    dirs.forEach((d, i) => {
+      const p = sphericalCapPoint(uv[i][0], uv[i][1], 75, 47, 4)
+      expect(p.x).toBeCloseTo(d.x * 4, 9)
+      expect(p.y).toBeCloseTo(d.y * 4, 9)
+      expect(p.z).toBeCloseTo(d.z * 4, 9)
+    })
   })
 })

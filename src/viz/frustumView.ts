@@ -36,70 +36,130 @@ export function frustumCorners(hfovDeg: number, vfovDeg: number): Vec3Like[] {
   return [corner(1, 1), corner(1, -1), corner(-1, -1), corner(-1, 1)]
 }
 
-// 4 near(camera origin)->far edges + 4 far-rectangle edges, 2 vertices each.
-const EDGE_COUNT = 8
-const VERT_COUNT = EDGE_COUNT * 2
+/**
+ * The detection boundary is a SPHERE (distance <= range), not a plane — so
+ * the drawn far surface is a spherical cap sampled on a (u, v) grid over
+ * the FOV. Every drawn far point sits at exactly the detection distance:
+ * no center shortfall (pre-8.3 bug), no corner overdraw (8.3's planar
+ * residual that user testing caught immediately).
+ */
+export function sphericalCapPoint(u: number, v: number, hfovDeg: number, vfovDeg: number, range: number): Vec3Like {
+  const y = u * Math.tan((hfovDeg * Math.PI) / 360)
+  const z = v * Math.tan((vfovDeg * Math.PI) / 360)
+  const len = Math.hypot(1, y, z)
+  return { x: range / len, y: (y * range) / len, z: (z * range) / len }
+}
+
+/** Grid resolution of the spherical cap (segments per edge). */
+const CAP_SEG = 8
+// Wireframe: 4 apex->corner edges + 4 curved boundary arcs of CAP_SEG segments.
+const LINE_SEGMENTS = 4 + 4 * CAP_SEG
+const LINE_VERTS = LINE_SEGMENTS * 2
+// Fill: apex + (CAP_SEG+1)^2 cap grid vertices.
+const FILL_VERTS = 1 + (CAP_SEG + 1) * (CAP_SEG + 1)
 
 interface CameraFrustum {
   group: THREE.Group
   lines: THREE.LineSegments
   positions: Float32Array
-  /** Translucent volume fill: apex + 4 far corners, indexed (4 sides + far quad). */
+  /** Translucent volume fill: apex fans to the cap boundary + the cap grid itself. */
   fill: THREE.Mesh
   fillPositions: Float32Array
   dirs: Vec3Like[]
-  /** FOV the current `dirs` were computed from — compared each update() so an FOV edit on an existing camera (no count change, so no rebuild()) still recomputes dirs instead of leaving the drawn cone at the stale angle. */
+  /** FOV the current geometry was computed from — compared each update() so an FOV edit on an existing camera (no count change, so no rebuild()) still recomputes instead of leaving the drawn cone at the stale angle. */
   hfovDeg: number
   vfovDeg: number
   lastRange: number
 }
 
-/**
- * Far corners are scaled so the far FACE sits at boresight distance `range`
- * (scale = range / d.x per unit corner direction), not so each corner is at
- * spherical distance `range`. With the old spherical scaling a 75° cone's
- * flat far face sat at ~range/1.33 on the boresight, so tags between that
- * plane and the true detection range looked "outside the cone" while being
- * correctly detected (QA round 8.3). Planar puts the boresight tip exactly
- * at the detection range; the honest residual is mild corner overdraw
- * (corner rays exceed spherical range by 1/cos of the diagonal half-angle).
- */
-export function frustumFarCorner(d: Vec3Like, range: number): Vec3Like {
-  const s = range / d.x
-  return { x: range, y: d.y * s, z: d.z * s }
+/** Boundary of the cap as (u, v) pairs walking the FOV rectangle's perimeter, CAP_SEG steps per edge. */
+function boundaryUV(): [number, number][] {
+  const pts: [number, number][] = []
+  const step = 2 / CAP_SEG
+  for (let i = 0; i < CAP_SEG; i++) pts.push([-1 + i * step, 1]) // top: left -> right
+  for (let i = 0; i < CAP_SEG; i++) pts.push([1, 1 - i * step]) // right: top -> bottom
+  for (let i = 0; i < CAP_SEG; i++) pts.push([1 - i * step, -1]) // bottom
+  for (let i = 0; i < CAP_SEG; i++) pts.push([-1, -1 + i * step]) // left
+  return pts
 }
+const BOUNDARY_UV = boundaryUV()
 
-function writeFrustumPositions(out: Float32Array, dirs: Vec3Like[], range: number): void {
+function writeFrustumPositions(out: Float32Array, hfovDeg: number, vfovDeg: number, range: number): void {
   let o = 0
   const write = (p: Vec3Like) => {
     out[o++] = p.x
     out[o++] = p.y
     out[o++] = p.z
   }
-  const corners = dirs.map((d) => frustumFarCorner(d, range))
-  for (const c of corners) {
+  // 4 apex -> corner edges (corners at true spherical range).
+  for (const [u, v] of [
+    [1, 1],
+    [1, -1],
+    [-1, -1],
+    [-1, 1],
+  ]) {
     write({ x: 0, y: 0, z: 0 })
-    write(c)
+    write(sphericalCapPoint(u, v, hfovDeg, vfovDeg, range))
   }
-  for (let i = 0; i < corners.length; i++) {
-    write(corners[i])
-    write(corners[(i + 1) % corners.length])
+  // Curved boundary arcs.
+  for (let i = 0; i < BOUNDARY_UV.length; i++) {
+    const [ua, va] = BOUNDARY_UV[i]
+    const [ub, vb] = BOUNDARY_UV[(i + 1) % BOUNDARY_UV.length]
+    write(sphericalCapPoint(ua, va, hfovDeg, vfovDeg, range))
+    write(sphericalCapPoint(ub, vb, hfovDeg, vfovDeg, range))
   }
 }
 
-// Indexed triangles over [apex, c0, c1, c2, c3]: 4 side faces + far quad.
-const FILL_INDEX = [0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1, 1, 2, 3, 1, 3, 4]
+/** Static fill index: cap grid triangles + apex fans to the grid's outer ring. */
+function buildFillIndex(): number[] {
+  const idx: number[] = []
+  const grid = (r: number, c: number): number => 1 + r * (CAP_SEG + 1) + c
+  for (let r = 0; r < CAP_SEG; r++) {
+    for (let c = 0; c < CAP_SEG; c++) {
+      idx.push(grid(r, c), grid(r + 1, c), grid(r + 1, c + 1))
+      idx.push(grid(r, c), grid(r + 1, c + 1), grid(r, c + 1))
+    }
+  }
+  // Side sheets: apex (0) fanned to each boundary row/column of the grid.
+  for (let c = 0; c < CAP_SEG; c++) {
+    idx.push(0, grid(0, c), grid(0, c + 1)) // v = -1 edge (row 0)
+    idx.push(0, grid(CAP_SEG, c + 1), grid(CAP_SEG, c)) // v = +1 edge
+  }
+  for (let r = 0; r < CAP_SEG; r++) {
+    idx.push(0, grid(r + 1, 0), grid(r, 0)) // u = -1 edge (col 0)
+    idx.push(0, grid(r, CAP_SEG), grid(r + 1, CAP_SEG)) // u = +1 edge
+  }
+  return idx
+}
+const FILL_INDEX = buildFillIndex()
+
+function writeFillPositions(out: Float32Array, hfovDeg: number, vfovDeg: number, range: number): void {
+  out[0] = 0
+  out[1] = 0
+  out[2] = 0
+  let o = 3
+  for (let r = 0; r <= CAP_SEG; r++) {
+    const v = -1 + (2 * r) / CAP_SEG
+    for (let c = 0; c <= CAP_SEG; c++) {
+      const u = -1 + (2 * c) / CAP_SEG
+      const p = sphericalCapPoint(u, v, hfovDeg, vfovDeg, range)
+      out[o++] = p.x
+      out[o++] = p.y
+      out[o++] = p.z
+    }
+  }
+}
 
 function buildCameraFrustum(spec: CameraSpec, colorIndex: number, fillOpacity: number, colorOverride?: number): CameraFrustum {
   const dirs = frustumCorners(spec.hfovDeg, spec.vfovDeg)
   const color = colorOverride ?? CAMERA_COLORS[colorIndex % CAMERA_COLORS.length]
-  const positions = new Float32Array(VERT_COUNT * 3)
+  const positions = new Float32Array(LINE_VERTS * 3)
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   const material = new THREE.LineBasicMaterial({ color })
   const lines = new THREE.LineSegments(geometry, material)
 
-  const fillPositions = new Float32Array(5 * 3)
+  const fillPositions = new Float32Array(FILL_VERTS * 3)
   const fillGeometry = new THREE.BufferGeometry()
   fillGeometry.setAttribute('position', new THREE.BufferAttribute(fillPositions, 3))
   fillGeometry.setIndex(FILL_INDEX)
@@ -126,18 +186,6 @@ function disposeCameraFrustum(entry: CameraFrustum): void {
   ;(entry.lines.material as THREE.Material).dispose()
   entry.fill.geometry.dispose()
   ;(entry.fill.material as THREE.Material).dispose()
-}
-
-function writeFillPositions(out: Float32Array, dirs: Vec3Like[], range: number): void {
-  out[0] = 0
-  out[1] = 0
-  out[2] = 0
-  dirs.forEach((d, i) => {
-    const c = frustumFarCorner(d, range)
-    out[(i + 1) * 3] = c.x
-    out[(i + 1) * 3 + 1] = c.y
-    out[(i + 1) * 3 + 2] = c.z
-  })
 }
 
 export interface FrustumView {
@@ -210,10 +258,10 @@ export function createFrustumView(
         }
         const range = Math.min(maxRangeFor(spec, tagSize), rangeCapM)
         if (entry.lastRange !== range) {
-          writeFrustumPositions(entry.positions, entry.dirs, range)
+          writeFrustumPositions(entry.positions, spec.hfovDeg, spec.vfovDeg, range)
           entry.lines.geometry.attributes.position.needsUpdate = true
           entry.lines.geometry.computeBoundingSphere()
-          writeFillPositions(entry.fillPositions, entry.dirs, range)
+          writeFillPositions(entry.fillPositions, spec.hfovDeg, spec.vfovDeg, range)
           entry.fill.geometry.attributes.position.needsUpdate = true
           entry.fill.geometry.computeBoundingSphere()
           entry.lastRange = range
