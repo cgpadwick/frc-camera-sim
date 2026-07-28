@@ -104,8 +104,14 @@ function parseRobotConfig(v: unknown, path: string): RobotConfig {
 export function parseConfig(json: unknown): SimConfig {
   if (!json || typeof json !== 'object') throw new Error('Config invalid: expected a JSON object')
   const j = json as Record<string, unknown>
+  // Older saved configs predate trustedRangeM — default them to 5 m rather
+  // than rejecting (null = explicitly uncapped is also valid).
+  let trustedRangeM: number | null = 5
+  if (j.trustedRangeM === null) trustedRangeM = null
+  else if (j.trustedRangeM !== undefined) trustedRangeM = positiveNum(j.trustedRangeM, 'trustedRangeM')
   return {
     fieldYear: str(j.fieldYear, 'fieldYear'),
+    trustedRangeM,
     robot: parseRobotConfig(j.robot, 'robot'),
   }
 }

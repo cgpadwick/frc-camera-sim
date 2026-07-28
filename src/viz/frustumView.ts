@@ -88,8 +88,8 @@ function disposeCameraFrustum(entry: CameraFrustum): void {
 }
 
 export interface FrustumView {
-  /** `hiddenIndex`: camera whose wireframe is hidden this frame (POV view renders from inside it). */
-  update(robotPose: RobotPose, robot: RobotConfig, tagSize: number, hiddenIndex?: number | null): void
+  /** `hiddenIndex`: camera whose wireframe is hidden this frame (POV view renders from inside it). `rangeCapM`: trusted-range cap - cones never draw past it. */
+  update(robotPose: RobotPose, robot: RobotConfig, tagSize: number, hiddenIndex?: number | null, rangeCapM?: number): void
   /** Show/hide all frustum wireframes (robot editor declutter toggle). */
   setVisible(visible: boolean): void
 }
@@ -117,7 +117,7 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
     setVisible(visible) {
       root.visible = visible
     },
-    update(robotPose, robot, tagSize, hiddenIndex = null) {
+    update(robotPose, robot, tagSize, hiddenIndex = null, rangeCapM = Infinity) {
       if (cameras.length !== robot.cameras.length) rebuild(robot.cameras)
       robot.cameras.forEach((spec, i) => {
         const entry = cameras[i]
@@ -131,7 +131,7 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
           entry.vfovDeg = spec.vfovDeg
           entry.lastRange = -1 // force the geometry rewrite below even if range happens to be unchanged
         }
-        const range = maxRangeFor(spec, tagSize)
+        const range = Math.min(maxRangeFor(spec, tagSize), rangeCapM)
         if (entry.lastRange !== range) {
           writeFrustumPositions(entry.positions, entry.dirs, range)
           entry.lines.geometry.attributes.position.needsUpdate = true

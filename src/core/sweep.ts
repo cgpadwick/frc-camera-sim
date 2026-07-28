@@ -6,6 +6,8 @@ export interface SweepParams {
   headingCount: number
   /** Range for the ideal (upper-bound) coverage layer — see idealTagCount. */
   idealRangeM: number
+  /** Trusted-range cap applied to actual detections (see SimConfig.trustedRangeM). Omit for uncapped. */
+  rangeCapM?: number
 }
 export const DEFAULT_SWEEP: SweepParams = { cellSizeM: 0.25, headingCount: 16, idealRangeM: 4 }
 
@@ -44,7 +46,7 @@ export function runSweep(
           y: (r + 0.5) * params.cellSizeM,
           headingRad: (2 * Math.PI * h) / params.headingCount,
         }
-        const ev = evaluatePose(pose, robot, layout, fieldOccluders)
+        const ev = evaluatePose(pose, robot, layout, fieldOccluders, params.rangeCapM ?? Infinity)
         perHeading[i * params.headingCount + h] = ev.tagCount
         minCount[i] = Math.min(minCount[i], ev.tagCount)
         for (const cam of ev.perCamera) {

@@ -43,14 +43,14 @@ export function maxRangeFor(spec: CameraSpec, tagSize: number): number {
   return (tagSize * focalPx) / MIN_TAG_PX
 }
 
-export function detectTags(robotPose: RobotPose, spec: CameraSpec, tags: Tag[], occluders: OccluderBox[]): Detection[] {
+export function detectTags(robotPose: RobotPose, spec: CameraSpec, tags: Tag[], occluders: OccluderBox[], rangeCapM = Infinity): Detection[] {
   const camPose = cameraFieldPose(robotPose, spec)
   const out: Detection[] = []
   for (const tag of tags) {
     const center = tag.pose.translation
     const toCam = sub(camPose.translation, center)
     const distanceM = length(toCam)
-    if (distanceM > maxRangeFor(spec, tag.size)) continue
+    if (distanceM > Math.min(maxRangeFor(spec, tag.size), rangeCapM)) continue
     const tagNormal = rotateVec(tag.pose.rotation, vec3(1, 0, 0))
     const skewRad = Math.acos(Math.min(1, Math.max(-1, dot(normalize(toCam), tagNormal))))
     if (skewRad > SKEW_MAX_RAD) continue

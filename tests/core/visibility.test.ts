@@ -66,3 +66,17 @@ describe('maxRangeFor', () => {
     expect(maxRangeFor(cam({ maxRangeM: 4 }), 0.1651)).toBe(4)
   })
 })
+
+describe('trusted range cap', () => {
+  const capCam = (): CameraSpec => ({
+    name: 'cap', hfovDeg: 90, vfovDeg: 60, resWidth: 1280, resHeight: 800, maxRangeM: null,
+    mount: { x: 0, y: 0, z: 0.5, rollDeg: 0, pitchDeg: 0, yawDeg: 0 },
+  })
+  it('a tag inside camera range but beyond the cap is filtered', () => {
+    // Derived range ~5.28m; tag at 3m detected uncapped, filtered at 2m cap.
+    const tag = { id: 1, size: 0.1651, pose: { translation: vec3(3, 0, 0.5), rotation: quatFromEuler(0, 0, rad(180)) } }
+    expect(detectTags({ x: 0, y: 0, headingRad: 0 }, capCam(), [tag], [])).toHaveLength(1)
+    expect(detectTags({ x: 0, y: 0, headingRad: 0 }, capCam(), [tag], [], 2)).toHaveLength(0)
+    expect(detectTags({ x: 0, y: 0, headingRad: 0 }, capCam(), [tag], [], 3.5)).toHaveLength(1)
+  })
+})

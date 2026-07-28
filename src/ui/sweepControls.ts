@@ -43,6 +43,7 @@ export function buildCellDetail(
   robot: RobotConfig,
   layout: TagLayout,
   fieldOccluders: OccluderBox[],
+  rangeCapM = Infinity,
 ): CellDetail {
   const i = cellIndex(c, r, result.cols)
   const rows: CellDetailHeadingRow[] = []
@@ -62,7 +63,7 @@ export function buildCellDetail(
     y: (r + 0.5) * result.cellSizeM,
     headingRad: (2 * Math.PI * worstHeading) / result.headingCount,
   }
-  const ev = evaluatePose(worstPose, robot, layout, fieldOccluders)
+  const ev = evaluatePose(worstPose, robot, layout, fieldOccluders, rangeCapM)
   const worstHeadingCameras: CellDetailCamera[] = robot.cameras.map((cam, idx) => ({
     cameraName: cam.name,
     tagIds: (ev.perCamera[idx]?.detections ?? []).map((d) => d.tagId),
@@ -79,6 +80,8 @@ export function buildCellDetail(
 }
 
 export interface SweepControlsOptions {
+  /** Boot-time trusted range from the saved config: null = uncapped (camera limit), number = capped. */
+  initialTrustedRangeM: number | null
   onRun(): void
   onModeChange(mode: SweepViewMode): void
   /** Ideal-view range edited; takes effect on the next Run. */
@@ -153,8 +156,8 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   idealLabel.className = 'sweep-mode-radio'
   const idealRangeSelect = document.createElement('select')
   for (const [value, text] of [
-    ['auto', 'Match my cameras'],
-    ['custom', 'Custom…'],
+    ['auto', 'Camera limit (uncapped)'],
+    ['custom', 'Capped…'],
   ]) {
     const o = document.createElement('option')
     o.value = value
@@ -165,10 +168,11 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   idealRangeInput.type = 'number'
   idealRangeInput.min = '0.5'
   idealRangeInput.step = '0.5'
-  idealRangeInput.value = '4'
+  idealRangeInput.value = String(opts.initialTrustedRangeM ?? 5)
   idealRangeInput.style.width = '3.5em'
-  idealRangeInput.style.display = 'none'
-  idealRangeInput.title = 'Fixed ideal-view range in meters. Applies on the next Run.'
+  idealRangeInput.style.display = opts.initialTrustedRangeM === null ? 'none' : ''
+  idealRangeInput.title = 'Tags farther than this are ignored everywhere (bad pose accuracy). Applies live; re-run the sweep for maps.'
+  idealRangeSelect.value = opts.initialTrustedRangeM === null ? 'auto' : 'custom'
   const emitIdealRange = (): void => {
     if (idealRangeSelect.value === 'auto') {
       opts.onIdealRangeChange(0) // 0 = auto (longest camera reach)
@@ -177,13 +181,13 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       if (Number.isFinite(v) && v > 0) opts.onIdealRangeChange(v)
     }
   }
-  idealRangeSelect.title = 'How far the ideal (upper-bound) view can see. "Match my cameras" uses your longest camera range so ideal always covers actual.'
+  idealRangeSelect.title = 'Trusted tag range: tags beyond it are filtered from detection AND the ideal layer. "Camera limit" = no cap beyond what the cameras resolve.'
   idealRangeSelect.addEventListener('change', () => {
     idealRangeInput.style.display = idealRangeSelect.value === 'custom' ? '' : 'none'
     emitIdealRange()
   })
   idealRangeInput.addEventListener('change', emitIdealRange)
-  idealLabel.append(document.createTextNode('Ideal range'), idealRangeSelect, idealRangeInput)
+  idealLabel.append(document.createTextNode('Tag range'), idealRangeSelect, idealRangeInput)
   bar.appendChild(idealLabel)
 
   const legend = document.createElement('div')

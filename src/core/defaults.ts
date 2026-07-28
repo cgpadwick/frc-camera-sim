@@ -32,6 +32,7 @@ export const SAMPLE_CAMERAS: CameraSpec[] = [
 
 export const DEFAULT_CONFIG: SimConfig = {
   fieldYear: '2026-rebuilt-welded',
+  trustedRangeM: 5,
   robot: {
     lengthM: 0.75,
     widthM: 0.75,

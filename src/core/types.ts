@@ -65,6 +65,12 @@ export interface RobotConfig {
 export interface SimConfig {
   fieldYear: string
   robot: RobotConfig
+  /**
+   * Pose-quality range cap in meters: tags farther than this are ignored
+   * everywhere (detection, ideal layer, frustums) because their pose
+   * solution is too noisy to trust. null = uncapped (camera limits only).
+   */
+  trustedRangeM: number | null
 }
 
 export interface RobotPose {

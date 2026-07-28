@@ -13,11 +13,11 @@ export interface PoseEvaluation {
   perCamera: { cameraIndex: number; detections: Detection[] }[]
 }
 
-export function evaluatePose(robotPose: RobotPose, robot: RobotConfig, layout: TagLayout, fieldOccluders: OccluderBox[]): PoseEvaluation {
+export function evaluatePose(robotPose: RobotPose, robot: RobotConfig, layout: TagLayout, fieldOccluders: OccluderBox[], rangeCapM = Infinity): PoseEvaluation {
   const occluders = [...fieldOccluders, ...robotOccludersInField(robotPose, robot)]
   const perCamera = robot.cameras.map((spec, cameraIndex) => ({
     cameraIndex,
-    detections: detectTags(robotPose, spec, layout.tags, occluders),
+    detections: detectTags(robotPose, spec, layout.tags, occluders, rangeCapM),
   }))
   const uniqueTags = new Set<number>()
   for (const cam of perCamera) for (const d of cam.detections) uniqueTags.add(d.tagId)

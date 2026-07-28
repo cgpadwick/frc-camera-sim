@@ -311,10 +311,13 @@ async function boot() {
     allTagIds: number[]
   } | null = null
   let sweepMode: SweepViewMode = 'min'
-  // 0 = auto: match the longest camera's reach so ideal always >= actual.
-  let sweepIdealRangeM = 0
+  /** Trusted-range cap for actual detections (Infinity when uncapped). */
+  function rangeCapM(): number {
+    return config.trustedRangeM ?? Infinity
+  }
+  /** Ideal-layer radius: the trusted cap when set, else the longest camera reach. */
   function resolveIdealRangeM(): number {
-    return sweepIdealRangeM > 0 ? sweepIdealRangeM : autoIdealRangeM(config.robot, tagSize)
+    return config.trustedRangeM ?? autoIdealRangeM(config.robot, tagSize)
   }
   let sweepRunning = false
   // Report baseline: a snapshot of ReportStats from a past sweep, captured via
@@ -401,15 +404,16 @@ async function boot() {
     if (!robotTc.dragging) robotGroup.position.set(drive.pose.x, drive.pose.y, 0)
     robotGroup.rotation.z = drive.pose.headingRad
 
-    const ev = evaluatePose(drive.pose, config.robot, layout, fieldOccluders)
+    const ev = evaluatePose(drive.pose, config.robot, layout, fieldOccluders, rangeCapM())
     const idealIds = idealTagIds(drive.pose.x, drive.pose.y, layout, fieldOccluders, resolveIdealRangeM())
     viewManager.update(drive.pose, config.robot)
-    frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex())
+    frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex(), rangeCapM())
     tagHighlights.update(ev, config.robot, idealIds)
     hud.update(ev, config.robot, idealIds.length)
   })
 
   const sweepControls = createSweepControls({
+    initialTrustedRangeM: config.trustedRangeM,
     onRun() {
       if (sweepRunning) return
       sweepRunning = true
@@ -424,7 +428,7 @@ async function boot() {
       sweepControls.setRunning(true)
       sweepControls.setProgress(0)
       sweepControls.clearDetail()
-      sweepInWorker(layout, snapshot.robot, fieldOccluders, { ...DEFAULT_SWEEP, idealRangeM: resolveIdealRangeM() }, (frac) => {
+      sweepInWorker(layout, snapshot.robot, fieldOccluders, { ...DEFAULT_SWEEP, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }, (frac) => {
         if (sweepGeneration === myGeneration) sweepControls.setProgress(frac)
       })
         .then((result) => {
@@ -454,8 +458,9 @@ async function boot() {
         })
     },
     onIdealRangeChange(rangeM) {
-      sweepIdealRangeM = rangeM
-      // The shown ideal layer was computed at the old range — flag it.
+      config.trustedRangeM = rangeM > 0 ? rangeM : null
+      saveConfig(config)
+      // The shown maps were computed at the old range — flag them.
       if (lastSweep && lastSweep.result.idealRangeM !== resolveIdealRangeM()) sweepControls.setStale(true)
     },
     onModeChange(mode) {
@@ -502,7 +507,7 @@ async function boot() {
     // edit (see markSweepStaleIfNeeded — this is exactly the drift that
     // makes a completed sweep "stale"). layout/fieldOccluders are safe to
     // read live: a field change always clears lastSweep via clearSweep().
-    sweepControls.showDetail(buildCellDetail(lastSweep.result, cell.c, cell.r, lastSweep.config.robot, layout, fieldOccluders))
+    sweepControls.showDetail(buildCellDetail(lastSweep.result, cell.c, cell.r, lastSweep.config.robot, layout, fieldOccluders, lastSweep.config.trustedRangeM ?? Infinity))
   })
 
   const panel = createConfigPanel({
