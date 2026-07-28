@@ -64,6 +64,51 @@ report in a new tab once a sweep has completed), and **Set as baseline**
 (captures the current sweep so the next report can show a before/after
 comparison).
 
+## Simulation model & correctness
+
+"Correct" is defined against this explicit model. Every rule below is what the
+detection engine computes — and what the drawn view cones show.
+
+**Camera model** — ideal pinhole, no lens distortion. Boresight +X, image bounds
+at tan(hfov/2) / tan(vfov/2). A tag is detected only if **all four corners**
+project inside the image (real detectors need the full square).
+
+**Range** — a tag counts only if its center is within the effective range =
+min(optical range, trusted range). Optical range comes from the 20-pixel rule:
+`tagSize x focalPx / 20`, focalPx = (resWidth/2)/tan(hfov/2) — a 36h11 tag
+needs roughly 20 px across to decode. Trusted range (default 5 m) models pose
+solutions degrading with distance. The boundary is a **sphere** around the
+camera, and the rendered cone's curved far surface is that exact sphere.
+
+**Skew** — view angle vs tag normal must be <= 65°; beyond that real decoders
+fail. **Occlusion** — five rays (4 corners + center) from the camera must clear
+every field/robot box; rays are shortened 1 cm at both ends so flush-mounted
+tags and face-mounted cameras behave physically.
+
+**Known simplifications** (stated, not hidden): no lens distortion or rolling
+shutter; no motion blur or exposure effects; tags are detected or not — no
+probabilistic middle ground; field occluders ship empty for 2026 (coverage
+near field structures reads optimistic); the drawn cone's lateral edges show
+the FOV for a tag CENTER — a tag hugging the edge needs its whole body inside,
+so detection near the side edges is slightly stricter than the drawn cone
+(conservative direction).
+
+**How correctness is enforced in CI** (`npm test`):
+- `tests/core/boundaryAgreement.test.ts` — the rendered far surface and the
+  detection boundary are compared directly: tags straddling the drawn cap must
+  flip detection exactly there, across multiple FOVs and view directions.
+- `tests/core/referenceFuzz.test.ts` — a second, independent implementation of
+  the whole pipeline (rotation matrices instead of quaternions, sampled
+  occlusion instead of the slab method) is fuzz-compared against the shipped
+  engine on 400 seeded-random configurations; any systematic math error must
+  now be made twice, in different formulations, identically.
+- Hand-computed geometry fixtures pin the conventions (frame axes, quaternion
+  composition, tag corner layout, occlusion epsilon).
+
+To validate against YOUR physical camera: print a tag, measure the distance and
+angle where your detector loses it, and set trusted range / FOV to match. The
+model's constants (20 px threshold, 65° skew) live in `src/core/visibility.ts`.
+
 ## Field model
 
 The 3D field geometry is loaded from a glTF model at
