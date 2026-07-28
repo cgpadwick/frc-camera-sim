@@ -54,22 +54,36 @@ interface CameraFrustum {
   lastRange: number
 }
 
+/**
+ * Far corners are scaled so the far FACE sits at boresight distance `range`
+ * (scale = range / d.x per unit corner direction), not so each corner is at
+ * spherical distance `range`. With the old spherical scaling a 75° cone's
+ * flat far face sat at ~range/1.33 on the boresight, so tags between that
+ * plane and the true detection range looked "outside the cone" while being
+ * correctly detected (QA round 8.3). Planar puts the boresight tip exactly
+ * at the detection range; the honest residual is mild corner overdraw
+ * (corner rays exceed spherical range by 1/cos of the diagonal half-angle).
+ */
+export function frustumFarCorner(d: Vec3Like, range: number): Vec3Like {
+  const s = range / d.x
+  return { x: range, y: d.y * s, z: d.z * s }
+}
+
 function writeFrustumPositions(out: Float32Array, dirs: Vec3Like[], range: number): void {
   let o = 0
-  const write = (x: number, y: number, z: number) => {
-    out[o++] = x
-    out[o++] = y
-    out[o++] = z
+  const write = (p: Vec3Like) => {
+    out[o++] = p.x
+    out[o++] = p.y
+    out[o++] = p.z
   }
-  for (const d of dirs) {
-    write(0, 0, 0)
-    write(d.x * range, d.y * range, d.z * range)
+  const corners = dirs.map((d) => frustumFarCorner(d, range))
+  for (const c of corners) {
+    write({ x: 0, y: 0, z: 0 })
+    write(c)
   }
-  for (let i = 0; i < dirs.length; i++) {
-    const a = dirs[i]
-    const b = dirs[(i + 1) % dirs.length]
-    write(a.x * range, a.y * range, a.z * range)
-    write(b.x * range, b.y * range, b.z * range)
+  for (let i = 0; i < corners.length; i++) {
+    write(corners[i])
+    write(corners[(i + 1) % corners.length])
   }
 }
 
@@ -119,9 +133,10 @@ function writeFillPositions(out: Float32Array, dirs: Vec3Like[], range: number):
   out[1] = 0
   out[2] = 0
   dirs.forEach((d, i) => {
-    out[(i + 1) * 3] = d.x * range
-    out[(i + 1) * 3 + 1] = d.y * range
-    out[(i + 1) * 3 + 2] = d.z * range
+    const c = frustumFarCorner(d, range)
+    out[(i + 1) * 3] = c.x
+    out[(i + 1) * 3 + 1] = c.y
+    out[(i + 1) * 3 + 2] = c.z
   })
 }
 

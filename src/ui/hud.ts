@@ -1,6 +1,6 @@
 import type { PoseEvaluation } from '../core/evaluate'
 import type { RobotConfig } from '../core/types'
-import { countBand, cameraInsideBoxIndex } from '../core/evaluate'
+import { countBand, cameraBlockedByBoxIndex } from '../core/evaluate'
 import { CAMERA_COLORS } from '../viz/frustumView'
 
 /** Single source of truth for count-band -> color, shared by any future consumer (report, UI). */
@@ -77,14 +77,14 @@ export function createHud(container: HTMLElement): Hud {
       }
       robot.cameras.forEach((cam, i) => {
         const count = ev.perCamera[i]?.detections.length ?? 0
-        const insideBox = cameraInsideBoxIndex(robot, i)
+        const blockedBy = cameraBlockedByBoxIndex(robot, i)
         cameraLines[i].textContent =
-          insideBox !== null
-            ? `${cam.name}: ⚠ inside Box ${insideBox} — blind`
+          blockedBy !== null
+            ? `${cam.name}: ⚠ aims into Box ${blockedBy} — blind`
             : `${cam.name}: ${count} tags`
         cameraLines[i].title =
-          insideBox !== null
-            ? `This camera's mount point is inside superstructure Box ${insideBox}; every sightline starts occluded. Move it to a surface in the Robot editor.`
+          blockedBy !== null
+            ? `This camera's line of sight starts inside body shape ${blockedBy} — it is buried in it or pointed into it. Move or re-aim it in the Build view.`
             : ''
       })
     },

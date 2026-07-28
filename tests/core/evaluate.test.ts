@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
-import { evaluatePose, idealTagCount, autoIdealRangeM, cameraInsideBoxIndex } from '../../src/core/evaluate'
+import { evaluatePose, idealTagCount, autoIdealRangeM, cameraBlockedByBoxIndex } from '../../src/core/evaluate'
 import type { RobotConfig } from '../../src/core/types'
 
 const layout = parseWpilibLayout(JSON.parse(readFileSync('public/layouts/2026-rebuilt-welded.json', 'utf8')))
@@ -77,31 +77,58 @@ describe('autoIdealRangeM', () => {
   })
 })
 
-describe('cameraInsideBoxIndex', () => {
-  const boxedRobot: RobotConfig = {
-    lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '0',
-    superstructure: [{ center: { x: 0, y: 0, z: 0.53 }, size: { x: 0.3, y: 0.3, z: 0.8 }, yawDeg: 0 }],
-    cameras: [
-      { name: 'inside', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
-        mount: { x: 0, y: 0, z: 0.45, rollDeg: 0, pitchDeg: -15, yawDeg: 90 } },
-      { name: 'outside', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
-        mount: { x: 0.3, y: 0, z: 0.25, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } },
-      { name: 'on-face', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
-        mount: { x: 0.15, y: 0, z: 0.45, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } },
-    ],
+
+describe('cameraBlockedByBoxIndex (QA round 8.1 — replaces the inside-AABB test)', () => {
+  const mk = (cams: { x: number; y: number; z: number; yawDeg: number; pitchDeg?: number }[]): RobotConfig => ({
+    lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '766',
+    // Chris's measured Box 0: x±0.3195, y±0.302, z 0.1385..0.5235
+    superstructure: [{ center: { x: 0, y: 0, z: 0.331 }, size: { x: 0.639, y: 0.604, z: 0.385 }, yawDeg: 0 }],
+    cameras: cams.map((c, i) => ({
+      name: `cam-${i}`, hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+      mount: { x: c.x, y: c.y, z: c.z, rollDeg: 0, pitchDeg: c.pitchDeg ?? 0, yawDeg: c.yawDeg },
+    })),
+  })
+
+  it("Chris's four flush face-mounted outward cameras: NONE flagged (the round-8 false positive)", () => {
+    const robot = mk([
+      { x: 0.319, y: 0.013, z: 0.3, yawDeg: 0 },
+      { x: -0.011, y: 0.302, z: 0.364, yawDeg: 90 },
+      { x: -0.319, y: 0.019, z: 0.36, yawDeg: 180 },
+      { x: -0.043, y: -0.302, z: 0.378, yawDeg: -90 },
+    ])
+    for (let i = 0; i < 4; i++) expect(cameraBlockedByBoxIndex(robot, i)).toBeNull()
+  })
+  it('a genuinely buried camera IS flagged', () => {
+    const robot = mk([{ x: 0, y: 0, z: 0.3, yawDeg: 0 }])
+    expect(cameraBlockedByBoxIndex(robot, 0)).toBe(0)
+  })
+  it('a face-mounted camera aiming INTO its own box IS flagged', () => {
+    const robot = mk([{ x: 0.319, y: 0.013, z: 0.3, yawDeg: 180 }])
+    expect(cameraBlockedByBoxIndex(robot, 0)).toBe(0)
+  })
+})
+
+describe('superstructure self-occlusion is really simulated (QA round 8.2)', () => {
+  const box = { center: { x: 0, y: 0, z: 0.331 }, size: { x: 0.639, y: 0.604, z: 0.385 }, yawDeg: 0 }
+  const buriedCam: CameraSpec = {
+    name: 'buried', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+    mount: { x: 0, y: 0, z: 0.3, rollDeg: 0, pitchDeg: 0, yawDeg: 0 },
   }
-  it('flags the tester repro camera (0,0,0.45) as inside Box 0', () => {
-    expect(cameraInsideBoxIndex(boxedRobot, 0)).toBe(0)
+  const base: RobotConfig = { lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '766', superstructure: [], cameras: [buriedCam] }
+  // Facing tag 2m ahead at camera height, well inside range/FOV.
+  const oneTag = {
+    field: { length: 16, width: 8 },
+    tags: [{ id: 1, size: 0.1651, pose: { translation: { x: 6, y: 4, z: 0.3 }, rotation: { w: 6.123233995736766e-17, x: 0, y: 0, z: 1 } } }],
+  }
+  const pose = { x: 4, y: 4, headingRad: 0 }
+  it('without the box the camera sees the tag; with the box it sees NOTHING', () => {
+    expect(evaluatePose(pose, base, oneTag, []).tagCount).toBe(1)
+    const withBox = { ...base, superstructure: [box] }
+    expect(evaluatePose(pose, withBox, oneTag, []).tagCount).toBe(0)
   })
-  it('does not flag a chassis-front camera', () => {
-    expect(cameraInsideBoxIndex(boxedRobot, 1)).toBeNull()
-  })
-  it('a flush face mount counts as inside (boundary) — editor placement offsets slightly outward in practice', () => {
-    expect(cameraInsideBoxIndex(boxedRobot, 2)).toBe(0)
-  })
-  it('respects box yaw', () => {
-    const r: RobotConfig = { ...boxedRobot, superstructure: [{ center: { x: 0, y: 0, z: 0.5 }, size: { x: 0.6, y: 0.1, z: 0.4 }, yawDeg: 90 }],
-      cameras: [{ ...boxedRobot.cameras[0], mount: { x: 0, y: 0.25, z: 0.5, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } }] }
-    expect(cameraInsideBoxIndex(r, 0)).toBe(0) // yawed long axis now spans Y
+  it('flush face-mounted camera still sees THROUGH its own face (shortening rule)', () => {
+    const faceCam = { ...buriedCam, mount: { ...buriedCam.mount, x: 0.319 } }
+    const withBox = { ...base, superstructure: [box], cameras: [faceCam] }
+    expect(evaluatePose(pose, withBox, oneTag, []).tagCount).toBe(1)
   })
 })

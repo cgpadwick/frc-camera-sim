@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { frustumCorners, CAMERA_COLORS, createFrustumView } from '../../src/viz/frustumView'
+import { frustumCorners, frustumFarCorner, CAMERA_COLORS, createFrustumView } from '../../src/viz/frustumView'
 import { DEFAULT_CONFIG, SAMPLE_CAMERAS } from '../../src/core/defaults'
 import { maxRangeFor } from '../../src/core/visibility'
 import type { RobotPose } from '../../src/core/types'
@@ -118,9 +118,25 @@ const pose: RobotPose = { x: 8, y: 4, headingRad: 0 }
     // First 8 floats are the 4 near(0,0,0)->far edges: [0,0,0, dir*range] x4.
     for (let i = 0; i < 4; i++) {
       const base = i * 6 + 3 // skip the (0,0,0) near vertex, land on the far vertex
-      expect(after[base]).toBeCloseTo(expectedDirs[i].x * range, 5)
-      expect(after[base + 1]).toBeCloseTo(expectedDirs[i].y * range, 5)
-      expect(after[base + 2]).toBeCloseTo(expectedDirs[i].z * range, 5)
+      const c = frustumFarCorner(expectedDirs[i], range)
+      expect(after[base]).toBeCloseTo(c.x, 5)
+      expect(after[base + 1]).toBeCloseTo(c.y, 5)
+      expect(after[base + 2]).toBeCloseTo(c.z, 5)
     }
+  })
+})
+
+describe('frustumFarCorner (QA round 8.3 — planar far face at boresight range)', () => {
+  it('far face sits at exactly x = range for every corner', () => {
+    for (const d of frustumCorners(75, 47)) {
+      expect(frustumFarCorner(d, 4).x).toBeCloseTo(4, 9)
+    }
+  })
+  it('a boresight tag just inside the detection range is inside the drawn cone', () => {
+    // Old spherical scaling put the 75° far face at ~range/1.33 ≈ 3.0m; a tag
+    // at 3.9m read as outside the cone while detected. Planar face fixes it.
+    const corners = frustumCorners(75, 47).map((d) => frustumFarCorner(d, 4))
+    const minFaceX = Math.min(...corners.map((c) => c.x))
+    expect(minFaceX).toBeGreaterThanOrEqual(3.9)
   })
 })

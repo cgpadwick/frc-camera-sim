@@ -1,6 +1,6 @@
 import type { RobotPose, RobotConfig, TagLayout, OccluderBox } from './types'
-import { detectTags, robotOccludersInField, segmentHitsBox, maxRangeFor, SKEW_MAX_RAD, type Detection } from './visibility'
-import { vec3, sub, length, normalize, dot, rotateVec, scale, add } from './math'
+import { detectTags, robotOccludersInField, segmentHitsBox, shortenedSegment, maxRangeFor, SKEW_MAX_RAD, type Detection } from './visibility'
+import { vec3, sub, length, normalize, dot, rotateVec, scale, add, quatFromEuler } from './math'
 
 export interface PoseEvaluation {
   /**
@@ -82,28 +82,27 @@ export function autoIdealRangeM(robot: RobotConfig, tagSize: number): number {
 }
 
 /**
- * Index of the superstructure box the camera's mount point sits inside, or
- * null. A camera embedded in its own superstructure is 100% blind (every
- * ray starts occluded) — the UI uses this to say WHY instead of showing an
- * unexplained 0 tags / black POV.
+ * Index of the superstructure box that blocks the camera's boresight, or
+ * null. Uses the SAME segment/shortening rules as detection, so the warning
+ * fires exactly when the sim is actually blind: a camera flush ON a face
+ * looking outward passes (its shortened rays start outside the box — QA
+ * round 8.1 false-positive), while a buried camera, or one aiming INTO its
+ * own box, is flagged.
  */
-export function cameraInsideBoxIndex(robot: RobotConfig, cameraIndex: number): number | null {
-  const m = robot.cameras[cameraIndex]?.mount
-  if (!m) return null
+export function cameraBlockedByBoxIndex(robot: RobotConfig, cameraIndex: number): number | null {
+  const cam = robot.cameras[cameraIndex]
+  if (!cam) return null
+  const m = cam.mount
+  const q = quatFromEuler((m.rollDeg * Math.PI) / 180, (m.pitchDeg * Math.PI) / 180, (m.yawDeg * Math.PI) / 180)
+  const dir = rotateVec(q, vec3(1, 0, 0))
+  const start = vec3(m.x, m.y, m.z)
+  const end = add(start, scale(dir, BORESIGHT_PROBE_M))
+  const [a, b] = shortenedSegment(start, end)
   for (let i = 0; i < robot.superstructure.length; i++) {
-    const b = robot.superstructure[i]
-    const yaw = (-b.yawDeg * Math.PI) / 180
-    const dx = m.x - b.center.x
-    const dy = m.y - b.center.y
-    const lx = dx * Math.cos(yaw) - dy * Math.sin(yaw)
-    const ly = dx * Math.sin(yaw) + dy * Math.cos(yaw)
-    if (
-      Math.abs(lx) <= b.size.x / 2 &&
-      Math.abs(ly) <= b.size.y / 2 &&
-      Math.abs(m.z - b.center.z) <= b.size.z / 2
-    ) {
-      return i
-    }
+    if (segmentHitsBox(a, b, robot.superstructure[i])) return i
   }
   return null
 }
+
+/** Boresight probe length for the blocked-camera warning — long enough to cross any realistic box. */
+const BORESIGHT_PROBE_M = 2

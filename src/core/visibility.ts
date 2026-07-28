@@ -112,7 +112,8 @@ export function robotOccludersInField(robotPose: RobotPose, robot: RobotConfig):
 // way instead of only fixing the tag side.
 export const OCCLUSION_EPSILON_M = 0.01
 
-function shortenSegment(a: Vec3, b: Vec3): [Vec3, Vec3] {
+/** Both-ends 1cm shortening used by every occlusion ray (exported for the blocked-boresight warning, QA round 8.1). */
+export function shortenedSegment(a: Vec3, b: Vec3): [Vec3, Vec3] {
   const d = sub(b, a)
   const len = length(d)
   // Too short to shorten by an epsilon at each end without inverting the
@@ -127,7 +128,7 @@ function shortenSegment(a: Vec3, b: Vec3): [Vec3, Vec3] {
 function occludedAny(from: Vec3, targets: Vec3[], occluders: OccluderBox[]): boolean {
   if (occluders.length === 0) return false
   return targets.some((t) => {
-    const [start, end] = shortenSegment(from, t)
+    const [start, end] = shortenedSegment(from, t)
     return occluders.some((b) => segmentHitsBox(start, end, b))
   })
 }
