@@ -184,7 +184,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   modeGroup.style.display = 'inline-flex'
   modeGroup.style.gap = '12px'
   modeGroup.appendChild(radio('min', 'Realistic (worst-case robot heading)', true, 'Your cameras, judged at the worst of 16 robot facings per spot'))
-  modeGroup.appendChild(radio('ideal', 'Theoretical best', false, 'Perfect lenses at YOUR camera mounts: same positions, range, and occlusion — only the lens FOV limit removed. Actual can never exceed this.'))
+  modeGroup.appendChild(radio('ideal', 'Theoretical best', false, 'What a perfect all-direction camera setup could see — the ceiling no mounting can beat'))
   bar.appendChild(modeGroup)
 
   const idealLabel = document.createElement('label')

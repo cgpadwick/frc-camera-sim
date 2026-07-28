@@ -57,7 +57,7 @@ export function createHud(container: HTMLElement): Hud {
       scoreEl.title =
         idealCount === undefined
           ? 'AprilTags your cameras can currently see'
-          : `AprilTags your cameras can currently see (${ev.tagCount} of ${idealCount} that perfect lenses at your mounts could see from here)`
+          : `AprilTags your cameras can currently see (${ev.tagCount} of ${idealCount} theoretically visible from this spot)`
       scoreEl.style.color = colorForCount(ev.tagCount)
 
       if (cameraLines.length !== robot.cameras.length) {

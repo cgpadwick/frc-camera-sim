@@ -1,5 +1,6 @@
 import type { RobotConfig, CameraSpec, TagLayout, OccluderBox } from './types'
-import { runSweep } from './sweep'
+import { runSweep, coverageScoreVsIdeal } from './sweep'
+import { idealTagCount } from './evaluate'
 import { detectTags, robotOccludersInField, tagCorners, maxRangeFor } from './visibility'
 import { rotateVec, vec3 } from './math'
 import type { SweepParams } from './sweep'
@@ -98,7 +99,7 @@ export interface OptimizeOptions {
   restarts?: number
   /** Indices of cameras to leave untouched. */
   lockedCameras?: number[]
-  onProgress?(p: { evals: number; totalEvals: number; bestScore: number; bestMeanWorst: number; cameraIndex: number; round: number }): void
+  onProgress?(p: { evals: number; totalEvals: number; bestScore: number; bestWorstPct: number; cameraIndex: number; round: number }): void
   /** Return true to abort; the best-so-far result is returned. */
   shouldStop?(): boolean
 }
@@ -110,13 +111,9 @@ export interface OptimizeResult {
 }
 
 /**
- * Objective: ABSOLUTE coverage — mean worst-case tags per cell, plus a small
- * mean-over-headings tiebreaker for plateaus. Deliberately NOT normalized by
- * the ideal layer: the ideal now depends on mount positions (perfect lenses
- * at YOUR mounts), so an ideal-normalized objective would reward moving a
- * camera somewhere that shrinks its own denominator. Absolute tags seen is
- * incentive-clean; the vs-ideal percentage remains a REPORTING metric
- * computed for whichever config is displayed.
+ * Objective: worst-case coverage score vs ideal, plus a small mean-coverage
+ * tiebreaker so the optimizer gets signal on plateaus where the worst-case
+ * integer count doesn't move.
  */
 export function objectiveScore(
   robot: RobotConfig,
@@ -125,12 +122,12 @@ export function objectiveScore(
   params: SweepParams,
 ): number {
   const result = runSweep(layout, robot, fieldOccluders, params)
-  let worstSum = 0
-  for (let i = 0; i < result.minCount.length; i++) worstSum += result.minCount[i]
+  const score = coverageScoreVsIdeal(result)
+  if (!score) return 0
   let headingSum = 0
   for (let i = 0; i < result.perHeading.length; i++) headingSum += result.perHeading[i]
-  const meanTiebreak = headingSum / result.perHeading.length / 10
-  return worstSum / result.minCount.length + meanTiebreak * 0.5
+  const meanTiebreak = headingSum / result.perHeading.length / 10 // ~0..1 scale
+  return score.worstPct + meanTiebreak * 0.5
 }
 
 /**
@@ -146,6 +143,8 @@ interface PoseGrid {
   headingCount: number
   /** Per pose: field + robot-self occluders (superstructure only — cameras don't occlude). */
   occludersPerPose: OccluderBox[][]
+  idealPerCell: Float32Array
+  idealSum: number
   tagBit: Map<number, number>
 }
 
@@ -160,10 +159,15 @@ function buildPoseGrid(
   const cellCount = cols * rows
   const poses: PoseGrid['poses'] = []
   const occludersPerPose: OccluderBox[][] = []
+  const idealPerCell = new Float32Array(cellCount)
+  let idealSum = 0
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x = (c + 0.5) * params.cellSizeM
       const y = (r + 0.5) * params.cellSizeM
+      const cell = r * cols + c
+      idealPerCell[cell] = idealTagCount(x, y, layout, fieldOccluders, params.idealRangeM)
+      idealSum += idealPerCell[cell]
       for (let h = 0; h < params.headingCount; h++) {
         const pose = { x, y, headingRad: (2 * Math.PI * h) / params.headingCount }
         poses.push(pose)
@@ -175,7 +179,7 @@ function buildPoseGrid(
   layout.tags.forEach((t, i) => {
     if (i < 64) tagBit.set(t.id, i)
   })
-  return { poses, cellCount, headingCount: params.headingCount, occludersPerPose, tagBit }
+  return { poses, cellCount, headingCount: params.headingCount, occludersPerPose, idealPerCell, idealSum, tagBit }
 }
 
 /** Per-pose visibility masks for one camera at one mount: 2 uint32 words per pose. */
@@ -409,11 +413,16 @@ function popcount32(v: number): number {
 
 /**
  * Score of the union of the given camera mask arrays — identical math to
- * objectiveScore (mean worst-case tags per cell + mean tiebreaker), computed
- * from cached masks. `parts.meanWorst` reports the human-readable component.
+ * objectiveScore/runSweep+coverageScoreVsIdeal (worst-heading count clamped
+ * to per-cell ideal, plus the mean-coverage tiebreaker), just computed from
+ * cached masks.
  */
-function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[], parts?: { meanWorst: number }): number {
-  let worstSum = 0
+function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[], parts?: { worstPct: number }): number {
+  if (grid.idealSum <= 0) {
+    if (parts) parts.worstPct = 0
+    return 0
+  }
+  let clampedWorstSum = 0
   let headingSum = 0
   const H = grid.headingCount
   for (let cell = 0; cell < grid.cellCount; cell++) {
@@ -430,12 +439,12 @@ function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[], parts?: { meanWor
       headingSum += count
       if (count < worst) worst = count
     }
-    worstSum += worst
+    clampedWorstSum += Math.min(worst, grid.idealPerCell[cell])
   }
-  const meanWorst = worstSum / grid.cellCount
-  if (parts) parts.meanWorst = meanWorst
+  const worstPct = (100 * clampedWorstSum) / grid.idealSum
+  if (parts) parts.worstPct = worstPct
   const meanTiebreak = headingSum / grid.poses.length / 10
-  return meanWorst + meanTiebreak * 0.5
+  return worstPct + meanTiebreak * 0.5
 }
 
 /**
@@ -493,9 +502,9 @@ export function optimizeCameraMounts(
     }
     // Initial masks use the general path (user mounts may have roll != 0).
     const masks = working.cameras.map((spec) => cameraMasks(grid, spec, layout.tags, rangeCapM))
-    const scoreParts = { meanWorst: 0 }
+    const scoreParts = { worstPct: 0 }
     let bestScore = scoreMasks(grid, masks, scoreParts)
-    let bestMeanWorst = scoreParts.meanWorst
+    let bestWorstPct = scoreParts.worstPct
     evals++
 
     for (let round = 0; round < rounds && !stopped; round++) {
@@ -529,14 +538,14 @@ export function optimizeCameraMounts(
               evals++
               if (s > bestScore) {
                 bestScore = s
-                bestMeanWorst = scoreParts.meanWorst
+                bestWorstPct = scoreParts.worstPct
                 bestMount = mount
                 bestMask = candMask
               }
             }
             if (stopped) break
           }
-          opts.onProgress?.({ evals, totalEvals, bestScore: Math.max(bestScore, overallBest?.score ?? 0), bestMeanWorst, cameraIndex: ci, round })
+          opts.onProgress?.({ evals, totalEvals, bestScore: Math.max(bestScore, overallBest?.score ?? 0), bestWorstPct, cameraIndex: ci, round })
           if (stopped) break
         }
         working.cameras[ci].mount = bestMount

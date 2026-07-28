@@ -6,8 +6,8 @@ export interface OptimizeProgress {
   evals: number
   totalEvals: number
   bestScore: number
-  /** Mean worst-case tags/cell of the incumbent — absolute coverage, denominator-free. */
-  bestMeanWorst: number
+  /** Pure worst-case coverage % of the incumbent — comparable to the final proposal score. */
+  bestWorstPct: number
   cameraIndex: number
   round: number
 }

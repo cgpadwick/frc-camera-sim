@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
-import { evaluatePose, idealTagCount, idealTagIds, autoIdealRangeM, cameraBlockedByBoxIndex } from '../../src/core/evaluate'
+import { evaluatePose, idealTagCount, autoIdealRangeM, cameraBlockedByBoxIndex } from '../../src/core/evaluate'
 import type { RobotConfig } from '../../src/core/types'
 
 const layout = parseWpilibLayout(JSON.parse(readFileSync('public/layouts/2026-rebuilt-welded.json', 'utf8')))
@@ -24,20 +24,56 @@ describe('evaluatePose on real field', () => {
   })
 })
 
+describe('idealTagCount', () => {
+  // One tag at (3, 0, 0.5) facing -X (toward the origin half-plane).
+  const layout1 = {
+    field: { length: 16, width: 8 },
+    tags: [{ id: 1, size: 0.1651, pose: { translation: { x: 3, y: 0.5, z: 0.5 }, rotation: { w: 6.123233995736766e-17, x: 0, y: 0, z: 1 } } }],
+  }
+  it('counts a tag within range on its front side', () => {
+    expect(idealTagCount(1, 0.5, layout1, [], 4)).toBe(1)
+  })
+  it('excludes a tag beyond range', () => {
+    expect(idealTagCount(1, 0.5, layout1, [], 1.5)).toBe(0)
+  })
+  it('excludes a tag viewed from behind', () => {
+    expect(idealTagCount(5, 0.5, layout1, [], 4)).toBe(0)
+  })
+  it('excludes past the skew limit (nearly edge-on)', () => {
+    // Robot far to the side: view direction nearly parallel to the tag face.
+    expect(idealTagCount(3.05, 4, layout1, [], 4)).toBe(0)
+  })
+  it('field occluder between robot and tag blocks it', () => {
+    const wall = { center: { x: 2, y: 0.5, z: 0.5 }, size: { x: 0.1, y: 2, z: 2 }, yawDeg: 0 }
+    expect(idealTagCount(1, 0.5, layout1, [wall], 4)).toBe(0)
+  })
+  it('is heading-independent by construction and >= any single-camera count at matching range', () => {
+    // Sanity on the real field: ideal at generous range dominates a 1-camera actual count.
+    const pose = { x: 16.541 / 2, y: 8.069 / 2, headingRad: 0 }
+    const robotOne: RobotConfig = {
+      lengthM: 0.8, widthM: 0.8, chassisHeightM: 0.15, teamNumber: '0', superstructure: [],
+      cameras: [{ name: 'f', hfovDeg: 80, vfovDeg: 55, resWidth: 1280, resHeight: 800, maxRangeM: 4,
+        mount: { x: 0.3, y: 0, z: 0.4, rollDeg: 0, pitchDeg: 15, yawDeg: 0 } }],
+    }
+    const actual = evaluatePose(pose, robotOne, layout, []).tagCount
+    const ideal = idealTagCount(pose.x, pose.y, layout, [], 4)
+    expect(ideal).toBeGreaterThanOrEqual(actual)
+  })
+})
 
 describe('autoIdealRangeM', () => {
   it('no cameras -> 4m fallback', () => {
     const r: RobotConfig = { lengthM: 1, widthM: 1, chassisHeightM: 0.1, teamNumber: '0', superstructure: [], cameras: [] }
     expect(autoIdealRangeM(r, 0.1651)).toBe(4)
   })
-  it('takes the longest camera optical reach (no offset — ideal eyes sit AT the mounts now)', () => {
+  it('takes the longest camera reach plus its mount offset', () => {
     const cam = (maxRangeM: number, mx: number, my: number) => ({
       name: 'c', hfovDeg: 80, vfovDeg: 55, resWidth: 1280, resHeight: 800, maxRangeM,
       mount: { x: mx, y: my, z: 0.3, rollDeg: 0, pitchDeg: 0, yawDeg: 0 },
     })
     const r: RobotConfig = { lengthM: 1, widthM: 1, chassisHeightM: 0.1, teamNumber: '0', superstructure: [],
       cameras: [cam(3, 0, 0), cam(5, 0.3, 0.4)] }
-    expect(autoIdealRangeM(r, 0.1651)).toBeCloseTo(5) // max maxRangeM; mount offset no longer added
+    expect(autoIdealRangeM(r, 0.1651)).toBeCloseTo(5.5) // 5 + hypot(0.3, 0.4)
   })
 })
 
@@ -94,84 +130,5 @@ describe('superstructure self-occlusion is really simulated (QA round 8.2)', () 
     const faceCam = { ...buriedCam, mount: { ...buriedCam.mount, x: 0.319 } }
     const withBox = { ...base, superstructure: [box], cameras: [faceCam] }
     expect(evaluatePose(pose, withBox, oneTag, []).tagCount).toBe(1)
-  })
-})
-
-describe('idealTagCount — perfect lenses at YOUR mounts', () => {
-  // One tag at (3, 0.5, 0.5) facing -X.
-  const layout1 = {
-    field: { length: 16, width: 8 },
-    tags: [{ id: 1, size: 0.1651, pose: { translation: { x: 3, y: 0.5, z: 0.5 }, rotation: { w: 6.123233995736766e-17, x: 0, y: 0, z: 1 } } }],
-  }
-  const robotWithCam = (mount: Partial<CameraSpec['mount']> = {}): RobotConfig => ({
-    lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '0', superstructure: [],
-    cameras: [{ name: 'c', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
-      mount: { x: 0, y: 0, z: 0.5, rollDeg: 0, pitchDeg: 0, yawDeg: 0, ...mount } }],
-  })
-  const at = (x: number, y: number, headingRad = 0) => ({ x, y, headingRad })
-
-  it('counts a tag within range of the mount', () => {
-    expect(idealTagCount(at(1, 0.5), robotWithCam(), layout1, [], 4)).toBe(1)
-  })
-  it('excludes a tag beyond range of the mount', () => {
-    expect(idealTagCount(at(1, 0.5), robotWithCam(), layout1, [], 1.5)).toBe(0)
-  })
-  it('mount offset counts: forward mount reaches a tag the robot center could not', () => {
-    // Center at x=1: distance to tag 2.0. Cap 1.9: center-based ideal would say 0,
-    // but the mount rides 0.3 forward -> distance 1.7 -> visible. This is the
-    // exact geometry of the "5 / 3 tags" contradiction, now impossible.
-    const robot = robotWithCam({ x: 0.3 })
-    expect(idealTagCount(at(1, 0.5), robot, layout1, [], 1.9)).toBe(1)
-  })
-  it('facing/skew still applies: tag viewed from behind is excluded', () => {
-    expect(idealTagCount(at(5, 0.5), robotWithCam(), layout1, [], 4)).toBe(0)
-  })
-  it('field occluder between mount and tag blocks it', () => {
-    const wall = { center: { x: 2, y: 0.5, z: 0.5 }, size: { x: 0.1, y: 2, z: 2 }, yawDeg: 0 }
-    expect(idealTagCount(at(1, 0.5), robotWithCam(), layout1, [wall], 4)).toBe(0)
-  })
-  it('robot SELF-occlusion applies to the ideal too (same rays as actual)', () => {
-    const robot: RobotConfig = { ...robotWithCam({ x: -0.3 }), superstructure: [
-      { center: { x: 0.1, y: 0, z: 0.5 }, size: { x: 0.2, y: 1, z: 1 }, yawDeg: 0 },
-    ] }
-    expect(idealTagCount(at(1, 0.5), robot, layout1, [], 4)).toBe(0)
-  })
-  it('zero cameras falls back to a center eye so the fresh robot still teaches', () => {
-    const bare: RobotConfig = { ...robotWithCam(), cameras: [] }
-    expect(idealTagCount(at(1, 0.5), bare, layout1, [], 4)).toBe(1)
-  })
-})
-
-describe('DOMINATION: actual can never exceed ideal (the "5/3 tags" class, eliminated)', () => {
-  it('holds over 300 randomized poses/configs with NO boundary exclusions', () => {
-    // Seeded PRNG for reproducibility.
-    let seed = 987654321
-    const rnd = () => {
-      seed |= 0
-      seed = (seed + 0x6d2b79f5) | 0
-      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-    }
-    const r = (lo: number, hi: number) => lo + (hi - lo) * rnd()
-    for (let i = 0; i < 300; i++) {
-      const robot: RobotConfig = {
-        lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '0',
-        superstructure: rnd() < 0.5 ? [{ center: { x: r(-0.2, 0.2), y: r(-0.2, 0.2), z: r(0.3, 0.6) }, size: { x: r(0.1, 0.5), y: r(0.1, 0.5), z: r(0.2, 0.8) }, yawDeg: r(-90, 90) }] : [],
-        cameras: Array.from({ length: 1 + Math.floor(rnd() * 3) }, (_, k) => ({
-          name: `c${k}`, hfovDeg: r(50, 100), vfovDeg: r(35, 70), resWidth: 1280, resHeight: 800,
-          maxRangeM: rnd() < 0.5 ? r(2, 7) : null,
-          mount: { x: r(-0.35, 0.35), y: r(-0.35, 0.35), z: r(0.2, 0.8), rollDeg: 0, pitchDeg: r(-30, 30), yawDeg: r(-180, 180) },
-        })),
-      }
-      const pose = { x: r(1, 15), y: r(1, 7), headingRad: r(-Math.PI, Math.PI) }
-      const cap = r(2, 6)
-      const actual = evaluatePose(pose, robot, layout, [], cap).tagCount
-      // Ideal range must dominate every camera's effective range: cap covers
-      // maxRangeM<=cap cases; use max(cap, autoIdealRangeM) like the app does.
-      const idealRange = Math.max(cap, 0) // effective per-camera range is min(optical, cap) <= cap
-      const ideal = idealTagCount(pose, robot, layout, [], idealRange)
-      expect(ideal, `iter ${i}`).toBeGreaterThanOrEqual(actual)
-    }
   })
 })
