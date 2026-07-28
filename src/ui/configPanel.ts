@@ -270,7 +270,7 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
       root.appendChild(item)
     })
     root.appendChild(
-      button('+ Add box', () => {
+      button('+ Add body shape', () => {
         working.robot.superstructure.push({ center: { x: 0, y: 0, z: 0.5 }, size: { x: 0.2, y: 0.2, z: 0.2 }, yawDeg: 0 })
         renderPanel()
         emitChange()

@@ -364,6 +364,9 @@ async function boot() {
         el.style.display = mode === 'robot' ? 'none' : ''
       }
       editorHints.style.display = mode === 'robot' ? '' : 'none'
+      // The chip's copy points AT the Robot tab — showing it while already
+      // there is nonsense (QA round 5b nit 2).
+      purposeChip.style.display = mode === 'robot' ? 'none' : ''
       panel.setMode(mode)
     },
     onAddCamera: () => editor.armAddCamera(),

@@ -165,7 +165,10 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       if (input.checked) opts.onModeChange(value)
     })
     label.append(input, document.createTextNode(labelText))
-    if (tooltip) label.title = tooltip
+    if (tooltip) {
+      label.title = tooltip
+      input.title = tooltip
+    }
     return label
   }
   bar.appendChild(radio('min', 'Realistic (worst-case robot heading)', true, 'Your cameras, judged at the worst of 16 robot facings per spot'))
@@ -252,18 +255,20 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   const reportBtn = document.createElement('button')
   reportBtn.textContent = 'Report'
   reportBtn.disabled = true
+  reportBtn.title = 'Run Analyze coverage first.'
   reportBtn.addEventListener('click', () => opts.onReport())
   bar.appendChild(reportBtn)
 
   const baselineBtn = document.createElement('button')
   baselineBtn.textContent = 'Set as baseline'
   baselineBtn.disabled = true
+  baselineBtn.title = 'Run Analyze coverage first.'
   baselineBtn.addEventListener('click', () => opts.onSetBaseline())
   bar.appendChild(baselineBtn)
 
   const optimizeBtn = document.createElement('button')
   optimizeBtn.textContent = '✨ Optimize'
-  optimizeBtn.title = 'Search your robot surfaces for better mounts for the SAME cameras (count and optics fixed). Requires a completed sweep.'
+  optimizeBtn.title = 'Run Analyze coverage first.'
   optimizeBtn.disabled = true
   optimizeBtn.addEventListener('click', () => opts.onOptimize())
   bar.appendChild(optimizeBtn)
@@ -322,7 +327,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   detailBox.className = 'cell-detail'
   el.appendChild(detailBox)
 
-  const EMPTY_DETAIL_TEXT = 'Run a sweep, then double-click a cell on the field to inspect it.'
+  const EMPTY_DETAIL_TEXT = 'Analyze coverage, then double-click any spot on the field to inspect it.'
   detailBox.textContent = EMPTY_DETAIL_TEXT
 
   return {

@@ -80,6 +80,7 @@ export function createTabBar(opts: {
   opacitySlider.max = '60'
   opacitySlider.value = '15'
   opacitySlider.setAttribute('aria-label', 'Cone opacity')
+  opacitySlider.title = 'How solid the camera view cones look (0 = outline only)'
   opacitySlider.addEventListener('input', () => opts.onFrustumOpacity(Number(opacitySlider.value) / 100))
   opacityWrap.append(document.createTextNode('Cone opacity'), opacitySlider)
   el.appendChild(opacityWrap)
