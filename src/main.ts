@@ -18,6 +18,7 @@ import { createHeatmapView } from './viz/heatmapView'
 import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
 import { createTabBar } from './ui/tabs'
+import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
@@ -103,6 +104,64 @@ async function boot() {
   const viewSelect = createViewSelect(viewManager)
   viewSelect.refresh(config.robot.cameras.map((c) => c.name))
   app.appendChild(viewSelect.el)
+  // --- Pick-up-and-move the robot in field view (orbit mode) ---
+  // Click the robot: an X/Y translate gizmo attaches; dragging slides it
+  // across the carpet with live score/frustum feedback (the frame loop reads
+  // drive.pose, which objectChange keeps in sync). WASD/rotation keys keep
+  // working alongside. Click empty space or leave orbit view to detach.
+  const robotTc = new TransformControls(ctx.camera, ctx.renderer.domElement)
+  robotTc.setMode('translate')
+  robotTc.showZ = false // field-plane moves only
+  robotTc.setSize(0.7)
+  ctx.scene.add(robotTc.getHelper())
+  robotTc.enabled = false
+
+  function detachRobotGizmo(): void {
+    robotTc.detach()
+    robotTc.enabled = false
+  }
+
+  robotTc.addEventListener('dragging-changed', (e) => {
+    const dragging = (e as unknown as { value: boolean }).value
+    ctx.controls.enabled = !dragging
+    // On release, re-clamp the pose into field bounds (reuses the drive
+    // controller's own clamp) and snap the group back onto the carpet.
+    if (!dragging) {
+      drive.setFieldBounds(layout.field.length, layout.field.width)
+      robotGroup.position.set(drive.pose.x, drive.pose.y, 0)
+    }
+  })
+  robotTc.addEventListener('objectChange', () => {
+    drive.pose.x = robotGroup.position.x
+    drive.pose.y = robotGroup.position.y
+  })
+
+  function pointerHitsRobot(e: PointerEvent): boolean {
+    const rect = ctx.renderer.domElement.getBoundingClientRect()
+    const ndc = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+    )
+    const ray = new THREE.Raycaster()
+    ray.setFromCamera(ndc, ctx.camera)
+    return ray.intersectObject(robotGroup, true).length > 0
+  }
+
+  ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || appMode !== 'field') return
+    if (viewManager.current() !== 'orbit') return
+    if (robotTc.dragging || robotTc.axis) return // gizmo owns this event
+    if (pointerHitsRobot(e)) {
+      robotTc.attach(robotGroup)
+      robotTc.enabled = true
+    } else {
+      detachRobotGizmo()
+    }
+  })
+  viewManager.onChange((id) => {
+    if (id !== 'orbit') detachRobotGizmo()
+  })
+
   // Single frustum-visibility state shared by both modes (F key + 👁 button).
   let frustumsVisible = true
   function setFrustumsVisible(visible: boolean): void {
@@ -197,6 +256,7 @@ async function boot() {
     onChange(mode) {
       appMode = mode
       if (mode === 'robot') {
+        detachRobotGizmo()
         viewManager.setMode('orbit')
         savedFieldCam.position.copy(ctx.camera.position)
         savedFieldCam.target.copy(ctx.controls.target)
@@ -254,10 +314,13 @@ async function boot() {
   let sweepGeneration = 0
 
   function rebuildRobot(): void {
+    const gizmoWasAttached = robotTc.object === robotGroup
+    if (gizmoWasAttached) robotTc.detach()
     ctx.scene.remove(robotGroup)
     disposeObject3D(robotGroup)
     robotGroup = buildRobot(config.robot)
     ctx.scene.add(robotGroup)
+    if (gizmoWasAttached) robotTc.attach(robotGroup)
   }
 
   function clearSweep(clearBaselineToo = false): void {
@@ -319,7 +382,9 @@ async function boot() {
       return
     }
     drive.update(dt)
-    robotGroup.position.set(drive.pose.x, drive.pose.y, 0)
+    // While the move gizmo drags, it owns the group's position; pose is
+    // synced back via objectChange (heading stays keyboard-driven).
+    if (!robotTc.dragging) robotGroup.position.set(drive.pose.x, drive.pose.y, 0)
     robotGroup.rotation.z = drive.pose.headingRad
 
     const ev = evaluatePose(drive.pose, config.robot, layout, fieldOccluders)
@@ -408,6 +473,8 @@ async function boot() {
   ctx.renderer.domElement.addEventListener('pointerup', (e) => {
     if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_DRAG_THRESHOLD_PX) return
     if (!lastSweep) return
+    // Robot clicks belong to the move gizmo, not cell inspection.
+    if (robotTc.dragging || robotTc.axis || pointerHitsRobot(e)) return
     const rect = ctx.renderer.domElement.getBoundingClientRect()
     const ndc = {
       x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
