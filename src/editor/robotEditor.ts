@@ -43,6 +43,8 @@ export interface RobotEditor {
   armAddCamera(): void
   /** Select a superstructure box (gizmo attaches); null deselects. */
   selectBox(index: number | null): void
+  /** Select a camera (same as clicking its gizmo); null deselects. */
+  selectCamera(index: number | null): void
   /** Show/hide the editor's frustum previews. */
   setFrustumsVisible(visible: boolean): void
   /** Fill opacity for the editor's frustum previews. */
@@ -412,6 +414,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       }
     },
     selectBox,
+    selectCamera: (index) => select(index),
     setFrustumsVisible: (v) => frustums.setVisible(v),
     setFrustumFillOpacity: (o) => frustums.setFillOpacity(o),
     armAddCamera() {

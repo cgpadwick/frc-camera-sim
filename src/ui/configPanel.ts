@@ -3,6 +3,7 @@ import { CAMERA_PRESETS, applyPreset } from './presets'
 import { exportConfig, importConfig, KNOWN_FIELD_YEARS } from './configStore'
 import { showToast } from './toast'
 import { CAMERA_COLORS } from '../viz/frustumView'
+import { cameraSummary } from './cameraSummary'
 
 export interface ConfigPanelOptions {
   config: SimConfig
@@ -108,6 +109,11 @@ function textField(labelText: string, value: string, onInput: (v: string) => voi
  * add/remove list item, preset pick, import — where losing focus is fine
  * because the user just clicked a button).
  */
+export interface ConfigPanelOptionsExtra {
+  /** Card expanded by user click — main.ts mirrors the selection into the 3D editor. */
+  onCameraPick?(index: number): void
+}
+
 export interface ConfigPanel {
   el: HTMLElement
   /** Show field-only sections (Field tab) or robot sections (Robot tab). */
@@ -118,7 +124,46 @@ export interface ConfigPanel {
   highlightCamera(index: number | null): void
 }
 
-export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
+/** Range slider + number input pair sharing one value; slider drags update live. */
+function sliderField(
+  labelText: string,
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+  onInput: (v: number) => void,
+): HTMLLabelElement {
+  const row = document.createElement('label')
+  row.className = 'field-row slider-row'
+  const span = document.createElement('span')
+  span.textContent = labelText
+  const slider = document.createElement('input')
+  slider.type = 'range'
+  slider.min = String(min)
+  slider.max = String(max)
+  slider.step = String(step)
+  slider.value = String(value)
+  slider.setAttribute('aria-label', labelText)
+  const num = document.createElement('input')
+  num.type = 'number'
+  num.step = String(step)
+  num.value = String(value)
+  num.className = 'slider-number'
+  slider.addEventListener('input', () => {
+    num.value = slider.value
+    onInput(Number(slider.value))
+  })
+  num.addEventListener('input', () => {
+    const v = Number(num.value)
+    if (!Number.isFinite(v)) return
+    slider.value = String(v)
+    onInput(v)
+  })
+  row.append(span, slider, num)
+  return row
+}
+
+export function createConfigPanel(opts: ConfigPanelOptions & ConfigPanelOptionsExtra): ConfigPanel {
   let working: SimConfig = structuredClone(opts.config)
   const root = document.createElement('div')
   root.className = 'config-panel'
@@ -158,6 +203,8 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
   // belongs to the Field view; robot dims/boxes/cameras belong to the Robot
   // editor. Import/Export shows in both.
   let panelMode: 'field' | 'robot' = 'field'
+  // Camera-card expansion survives re-renders; collapsed by default.
+  const expandedCams = new Set<number>()
 
   function renderPanel(): void {
     // Keep the collapse header: replaceChildren() rebuilds the whole panel,
@@ -285,25 +332,44 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
 
     working.robot.cameras.forEach((cam, i) => {
       const item = document.createElement('div')
-      item.className = 'list-item'
+      item.className = 'list-item camera-card'
       item.dataset.camIndex = String(i)
-      const camLabel = labelOnly(`Camera ${i}`)
+
+      const cardHeader = document.createElement('div')
+      cardHeader.className = 'camera-card-header'
       const camDot = document.createElement('span')
       camDot.className = 'camera-dot'
       camDot.style.background = `#${CAMERA_COLORS[i % CAMERA_COLORS.length].toString(16).padStart(6, '0')}`
-      camLabel.prepend(camDot)
-      item.appendChild(camLabel)
-      item.appendChild(
-        textField('Name', cam.name, (v) => {
-          cam.name = v
-          emitChange()
-        }),
-      )
+      const nameEl = document.createElement('span')
+      nameEl.className = 'camera-card-name'
+      nameEl.textContent = cam.name
+      const chevron = document.createElement('button')
+      chevron.className = 'camera-card-chevron'
+      chevron.textContent = expandedCams.has(i) ? '▾' : '▸'
+      chevron.setAttribute('aria-label', expandedCams.has(i) ? `Collapse ${cam.name}` : `Expand ${cam.name}`)
+      cardHeader.append(camDot, nameEl, chevron)
+      cardHeader.addEventListener('click', () => {
+        if (expandedCams.has(i)) expandedCams.delete(i)
+        else {
+          expandedCams.add(i)
+          opts.onCameraPick?.(i)
+        }
+        renderPanel()
+      })
+      item.appendChild(cardHeader)
+
+      const summaryEl = document.createElement('div')
+      summaryEl.className = 'camera-card-summary'
+      summaryEl.textContent = cameraSummary(cam)
+      item.appendChild(summaryEl)
+      const refreshSummary = (): void => {
+        summaryEl.textContent = cameraSummary(cam)
+      }
 
       const presetRow = document.createElement('label')
       presetRow.className = 'field-row'
       const presetSpan = document.createElement('span')
-      presetSpan.textContent = 'preset'
+      presetSpan.textContent = 'Preset'
       const presetSelect = document.createElement('select')
       for (const preset of CAMERA_PRESETS) {
         const o = document.createElement('option')
@@ -321,77 +387,95 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
       presetRow.append(presetSpan, presetSelect)
       item.appendChild(presetRow)
 
-      item.appendChild(
-        numberField('H FOV (°)', cam.hfovDeg, 0.1, (v) => {
-          cam.hfovDeg = v
-          updateCamWarning()
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('V FOV (°)', cam.vfovDeg, 0.1, (v) => {
-          cam.vfovDeg = v
-          updateCamWarning()
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        positiveNumberField('Resolution W (px)', cam.resWidth, 1, (v) => {
-          cam.resWidth = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        positiveNumberField('Resolution H (px)', cam.resHeight, 1, (v) => {
-          cam.resHeight = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Max range (m, 0 = auto)', cam.maxRangeM ?? 0, 0.1, (v) => {
-          cam.maxRangeM = v > 0 ? v : null
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Mount X (m)', cam.mount.x, 0.01, (v) => {
-          cam.mount.x = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Mount Y (m)', cam.mount.y, 0.01, (v) => {
-          cam.mount.y = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Mount Z (m)', cam.mount.z, 0.01, (v) => {
-          cam.mount.z = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Roll (°)', cam.mount.rollDeg, 1, (v) => {
-          cam.mount.rollDeg = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Pitch (°, +down/−up)', cam.mount.pitchDeg, 1, (v) => {
-          cam.mount.pitchDeg = v
-          emitChange()
-        }),
-      )
-      item.appendChild(
-        numberField('Yaw (°)', cam.mount.yawDeg, 1, (v) => {
-          cam.mount.yawDeg = v
-          emitChange()
-        }),
-      )
+      if (expandedCams.has(i)) {
+        const body = document.createElement('div')
+        body.className = 'camera-card-body'
+        body.appendChild(
+          textField('Name', cam.name, (v) => {
+            cam.name = v
+            nameEl.textContent = v
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('H FOV (°)', cam.hfovDeg, 0.1, (v) => {
+            cam.hfovDeg = v
+            updateCamWarning()
+            refreshSummary()
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('V FOV (°)', cam.vfovDeg, 0.1, (v) => {
+            cam.vfovDeg = v
+            updateCamWarning()
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          positiveNumberField('Resolution W (px)', cam.resWidth, 1, (v) => {
+            cam.resWidth = v
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          positiveNumberField('Resolution H (px)', cam.resHeight, 1, (v) => {
+            cam.resHeight = v
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('Max range (m, 0 = auto)', cam.maxRangeM ?? 0, 0.1, (v) => {
+            cam.maxRangeM = v > 0 ? v : null
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('Mount X (m)', cam.mount.x, 0.01, (v) => {
+            cam.mount.x = v
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('Mount Y (m)', cam.mount.y, 0.01, (v) => {
+            cam.mount.y = v
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('Mount Z (m)', cam.mount.z, 0.01, (v) => {
+            cam.mount.z = v
+            refreshSummary()
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          numberField('Roll (°)', cam.mount.rollDeg, 1, (v) => {
+            cam.mount.rollDeg = v
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          sliderField('Pitch (°, +down/−up)', cam.mount.pitchDeg, -60, 60, 1, (v) => {
+            cam.mount.pitchDeg = v
+            refreshSummary()
+            emitChange()
+          }),
+        )
+        body.appendChild(
+          sliderField('Yaw (°)', cam.mount.yawDeg, -180, 180, 1, (v) => {
+            cam.mount.yawDeg = v
+            refreshSummary()
+            emitChange()
+          }),
+        )
+        item.appendChild(body)
+      }
+
       item.appendChild(
         button('Remove', () => {
           working.robot.cameras.splice(i, 1)
+          expandedCams.delete(i)
           renderPanel()
           emitChange()
         }),
@@ -458,6 +542,11 @@ export function createConfigPanel(opts: ConfigPanelOptions): ConfigPanel {
     highlightCamera(index) {
       for (const el of root.querySelectorAll('.list-item.selected')) el.classList.remove('selected')
       if (index === null) return
+      // 3D selection expands the card too (spec: expand & scroll + highlight).
+      if (!expandedCams.has(index)) {
+        expandedCams.add(index)
+        renderPanel()
+      }
       const item = root.querySelector(`[data-cam-index="${index}"]`)
       if (!item) return
       item.classList.add('selected')

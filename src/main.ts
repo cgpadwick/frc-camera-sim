@@ -790,6 +790,10 @@ async function boot() {
       // after the new layout/occluders have actually loaded successfully.
       void rebuildField(year)
     },
+    onCameraPick(index) {
+      selectedCameraIndex = index
+      editor.selectCamera(index)
+    },
   })
   app.appendChild(panel.el)
 

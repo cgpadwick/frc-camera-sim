@@ -669,3 +669,63 @@ button:disabled {
   color: #eee;
   white-space: nowrap;
 }
+
+/* A8: narrow effective viewport (browser zoom 200% on a laptop, small
+   windows) — the absolute left overlay stack must never sit on top of the
+   sweep-bar controls. Shrink the stack and keep the bar above it. */
+@media (max-width: 760px) {
+  .left-stack {
+    transform: scale(0.8);
+    transform-origin: top left;
+  }
+
+  .hud-subtitle {
+    display: none;
+  }
+
+  .sweep-controls {
+    z-index: 14; /* above .left-stack (10) */
+    background: rgba(20, 22, 28, 0.97);
+  }
+}
+
+/* --- Phase B: camera cards --- */
+
+.camera-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.camera-card-name {
+  font-weight: 600;
+  color: #eee;
+  flex: 1;
+}
+
+.camera-card-chevron {
+  background: transparent;
+  border: none;
+  color: #9aa4b0;
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 24px;
+}
+
+.camera-card-summary {
+  font-size: 13px;
+  color: #b6c0cc;
+  margin: 2px 0 6px 18px;
+}
+
+.slider-row input[type='range'] {
+  flex: 1;
+  min-width: 60px;
+  accent-color: #4fc3f7;
+}
+
+.slider-number {
+  width: 4.5em;
+}
