@@ -107,7 +107,7 @@ export interface SweepControlsHandle {
   /** Show/hide the heatmap color legend (visible only while a sweep is displayed). */
   setLegendVisible(visible: boolean): void
   /** Coverage-vs-ideal score line (null clears/hides it). */
-  setScore(score: { worstPct: number } | null): void
+  setScore(score: { worstPct: number; idealRangeM: number } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
 }
@@ -328,7 +328,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
         return
       }
       scoreEl.style.display = ''
-      scoreEl.textContent = `Score vs ideal: ${score.worstPct.toFixed(0)} / 100`
+      scoreEl.textContent = `Score vs ideal@${score.idealRangeM.toFixed(1)}m: ${score.worstPct.toFixed(0)} / 100`
     },
     setReportEnabled(enabled) {
       reportBtn.disabled = !enabled

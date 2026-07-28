@@ -442,7 +442,10 @@ async function boot() {
           if (sweepGeneration !== myGeneration) return
           heatmap.show(result, sweepMode)
           sweepControls.setLegendVisible(true)
-          sweepControls.setScore(coverageScoreVsIdeal(result))
+          {
+            const sc = coverageScoreVsIdeal(result)
+            sweepControls.setScore(sc ? { ...sc, idealRangeM: result.idealRangeM } : null)
+          }
           lastSweep = {
             result,
             config: snapshot,
