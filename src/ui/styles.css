@@ -71,7 +71,7 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   color: #eee;
   font-family: monospace;
   font-size: 12px;
-  padding: 12px;
+  padding: 40px 12px 12px;
 }
 
 .config-panel h3 {
@@ -269,10 +269,10 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 }
 
 .config-panel-toggle {
-  position: sticky;
-  top: 0;
-  float: right;
-  z-index: 11;
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
   font-family: monospace;
   font-size: 12px;
   background: #22262e;
@@ -297,5 +297,4 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 .config-panel.collapsed .config-panel-toggle {
   pointer-events: auto;
-  float: none;
 }
