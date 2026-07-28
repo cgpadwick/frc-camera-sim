@@ -1,9 +1,9 @@
 import type { SweepResult } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
 import type { RobotConfig } from '../core/types'
-import { scoreBand } from '../core/scoring'
+import { countBand } from '../core/evaluate'
 
-export type Band = ReturnType<typeof scoreBand>
+export type Band = ReturnType<typeof countBand>
 
 const BANDS: Band[] = ['dead', 'poor', 'ok', 'strong']
 
@@ -13,7 +13,7 @@ export const RARE_SEEN_THRESHOLD_PCT = 2
 export interface ReportStats {
   bandPctMin: Record<Band, number>
   bandPctAvg: Record<Band, number>
-  /** Cell centers with minScore <= 0 ("dead"), capped at DEAD_ZONE_CAP entries. */
+  /** Cell centers with minCount <= 0 ("dead" — some heading sees zero tags), capped at DEAD_ZONE_CAP entries. */
   deadZones: { xM: number; yM: number }[]
   /** Count of additional dead cells beyond the DEAD_ZONE_CAP cutoff (0 if none). */
   deadZoneOverflow: number
@@ -26,7 +26,7 @@ export interface ReportStats {
 
 function bandPercentages(scores: Float32Array): Record<Band, number> {
   const counts: Record<Band, number> = { dead: 0, poor: 0, ok: 0, strong: 0 }
-  for (let i = 0; i < scores.length; i++) counts[scoreBand(scores[i])]++
+  for (let i = 0; i < scores.length; i++) counts[countBand(scores[i])]++
   const total = scores.length || 1
   const pct: Record<Band, number> = { dead: 0, poor: 0, ok: 0, strong: 0 }
   for (const b of BANDS) pct[b] = (counts[b] * 100) / total
@@ -57,14 +57,14 @@ function bandPercentages(scores: Float32Array): Record<Band, number> {
  * ids. When omitted, `tagsNeverSeen` is empty (nothing to compare against).
  */
 export function computeReportStats(result: SweepResult, robot: RobotConfig, allTagIds?: number[]): ReportStats {
-  const bandPctMin = bandPercentages(result.minScore)
-  const bandPctAvg = bandPercentages(result.avgScore)
+  const bandPctMin = bandPercentages(result.minCount)
+  const bandPctAvg = bandPercentages(result.avgCount)
 
   const deadZonesAll: { xM: number; yM: number }[] = []
   for (let r = 0; r < result.rows; r++) {
     for (let c = 0; c < result.cols; c++) {
       const i = cellIndex(c, r, result.cols)
-      if (result.minScore[i] <= 0) {
+      if (result.minCount[i] <= 0) {
         deadZonesAll.push({ xM: (c + 0.5) * result.cellSizeM, yM: (r + 0.5) * result.cellSizeM })
       }
     }

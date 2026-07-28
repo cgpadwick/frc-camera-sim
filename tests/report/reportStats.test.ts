@@ -5,7 +5,7 @@ import type { SweepResult } from '../../src/core/sweep'
 function fakeSweep(minVals: number[], avgVals: number[]): SweepResult {
   return {
     cols: minVals.length, rows: 1, cellSizeM: 1, headingCount: 2,
-    minScore: Float32Array.from(minVals), avgScore: Float32Array.from(avgVals),
+    minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
     perHeading: new Float32Array(minVals.length * 2),
     tagSeen: { 1: 100, 2: 1 }, cameraDetections: [90, 10],
   }
@@ -17,8 +17,8 @@ const robot = { lengthM: 1, widthM: 1, chassisHeightM: 0.1, teamNumber: '0', sup
   ] }
 
 describe('computeReportStats', () => {
-  const stats = computeReportStats(fakeSweep([0, 20, 50, 80], [10, 30, 60, 90]), robot)
-  it('band percentages from minScore', () => {
+  const stats = computeReportStats(fakeSweep([0, 1, 2, 3], [0.5, 1.5, 2.5, 3.5]), robot)
+  it('band percentages from minCount', () => {
     expect(stats.bandPctMin.dead).toBeCloseTo(25)
     expect(stats.bandPctMin.poor).toBeCloseTo(25)
     expect(stats.bandPctMin.ok).toBeCloseTo(25)
@@ -39,9 +39,9 @@ describe('computeReportStats', () => {
 // --- Additional coverage beyond the brief's transcribed tests ---
 
 describe('computeReportStats: bandPctAvg is independent of bandPctMin', () => {
-  it('computed from avgScore, not minScore', () => {
+  it('computed from avgCount, not minCount', () => {
     // avgVals = [10, 30, 60, 90] -> poor, poor, ok, strong (bands: dead<=0, poor<40, ok<70, strong>=70)
-    const stats = computeReportStats(fakeSweep([0, 20, 50, 80], [10, 30, 60, 90]), robot)
+    const stats = computeReportStats(fakeSweep([0, 1, 2, 3], [0.5, 1.5, 2.5, 3.5]), robot)
     expect(stats.bandPctAvg.dead).toBeCloseTo(0)
     expect(stats.bandPctAvg.poor).toBeCloseTo(50)
     expect(stats.bandPctAvg.ok).toBeCloseTo(25)
@@ -56,7 +56,7 @@ describe('computeReportStats: dead zone cap', () => {
     const avgVals = new Array(n).fill(0)
     const sweep: SweepResult = {
       cols: n, rows: 1, cellSizeM: 1, headingCount: 1,
-      minScore: Float32Array.from(minVals), avgScore: Float32Array.from(avgVals),
+      minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
       perHeading: new Float32Array(n),
       tagSeen: {}, cameraDetections: [0, 0],
     }
@@ -71,7 +71,7 @@ describe('computeReportStats: dead zone cap', () => {
     const avgVals = new Array(n).fill(0)
     const sweep: SweepResult = {
       cols: n, rows: 1, cellSizeM: 1, headingCount: 1,
-      minScore: Float32Array.from(minVals), avgScore: Float32Array.from(avgVals),
+      minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
       perHeading: new Float32Array(n),
       tagSeen: {}, cameraDetections: [0, 0],
     }
@@ -114,7 +114,7 @@ describe('computeReportStats: tagSeen semantics (carried finding from Task 7 rev
     const avgVals = new Array(n).fill(50)
     const sweep: SweepResult = {
       cols: n, rows: 1, cellSizeM: 1, headingCount: 2,
-      minScore: Float32Array.from(minVals), avgScore: Float32Array.from(avgVals),
+      minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
       perHeading: new Float32Array(n * 2),
       tagSeen: { 7: 2 }, // 2 / 200 = 1% < 2% threshold
       cameraDetections: [2, 0],

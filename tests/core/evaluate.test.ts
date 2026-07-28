@@ -15,11 +15,11 @@ describe('evaluatePose on real field', () => {
   it('center of field, some heading sees at least one tag', () => {
     // Sweep 8 headings at field center; at least one should see tags on a 32-tag field
     const scores = Array.from({ length: 8 }, (_, i) =>
-      evaluatePose({ x: 16.541 / 2, y: 8.069 / 2, headingRad: (i * Math.PI) / 4 }, robot, layout, []).score)
+      evaluatePose({ x: 16.541 / 2, y: 8.069 / 2, headingRad: (i * Math.PI) / 4 }, robot, layout, []).tagCount)
     expect(Math.max(...scores)).toBeGreaterThan(0)
   })
-  it('zero cameras => score 0', () => {
+  it('zero cameras => 0 tags', () => {
     const r = { ...robot, cameras: [] }
-    expect(evaluatePose({ x: 4, y: 4, headingRad: 0 }, r, layout, []).score).toBe(0)
+    expect(evaluatePose({ x: 4, y: 4, headingRad: 0 }, r, layout, []).tagCount).toBe(0)
   })
 })

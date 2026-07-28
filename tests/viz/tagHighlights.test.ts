@@ -35,7 +35,7 @@ describe('createTagHighlights', () => {
   it('creates no ring for a tag that is never detected', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
-    const ev: PoseEvaluation = { score: 0, perCamera: [{ cameraIndex: 0, detections: [] }] }
+    const ev: PoseEvaluation = { tagCount: 1, perCamera: [{ cameraIndex: 0, detections: [] }] }
     highlights.update(ev, DEFAULT_CONFIG.robot)
     const ring = fieldGroup.getObjectByName('tag-1-ring')
     expect(ring).toBeUndefined()
@@ -44,7 +44,7 @@ describe('createTagHighlights', () => {
   it('shows a green ring for a detected tag', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
-    const ev: PoseEvaluation = { score: 25, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
+    const ev: PoseEvaluation = { tagCount: 1, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
     highlights.update(ev, DEFAULT_CONFIG.robot)
     const ring = fieldGroup.getObjectByName('tag-1-ring') as THREE.Mesh
     expect(ring).toBeTruthy()
@@ -56,7 +56,7 @@ describe('createTagHighlights', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
     const ev: PoseEvaluation = {
-      score: 40,
+      tagCount: 1,
       perCamera: [
         { cameraIndex: 0, detections: [det({ tagId: 1 })] },
         { cameraIndex: 1, detections: [det({ tagId: 1 })] },
@@ -70,12 +70,12 @@ describe('createTagHighlights', () => {
   it('hides the ring again once the tag drops out of view (visibility toggled, not removed)', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
-    const seen: PoseEvaluation = { score: 25, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
+    const seen: PoseEvaluation = { tagCount: 1, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
     highlights.update(seen, DEFAULT_CONFIG.robot)
     const ring = fieldGroup.getObjectByName('tag-1-ring') as THREE.Mesh
     expect(ring.visible).toBe(true)
 
-    const gone: PoseEvaluation = { score: 0, perCamera: [{ cameraIndex: 0, detections: [] }] }
+    const gone: PoseEvaluation = { tagCount: 1, perCamera: [{ cameraIndex: 0, detections: [] }] }
     highlights.update(gone, DEFAULT_CONFIG.robot)
     expect(fieldGroup.getObjectByName('tag-1-ring')).toBe(ring) // same instance, not re-created
     expect(ring.visible).toBe(false)
@@ -84,7 +84,7 @@ describe('createTagHighlights', () => {
   it('offsets the ring 0.01 along the tag normal (+X of tag frame) relative to the quad', () => {
     const fieldGroup = fieldGroupWithTag(1)
     const highlights = createTagHighlights(fieldGroup)
-    const ev: PoseEvaluation = { score: 25, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
+    const ev: PoseEvaluation = { tagCount: 1, perCamera: [{ cameraIndex: 0, detections: [det({ tagId: 1 })] }] }
     highlights.update(ev, DEFAULT_CONFIG.robot)
     const quad = fieldGroup.getObjectByName('tag-1') as THREE.Mesh
     const ring = fieldGroup.getObjectByName('tag-1-ring') as THREE.Mesh

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { runSweep, cellIndex } from '../../src/core/sweep'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
 import { buildCellDetail } from '../../src/ui/sweepControls'
-import { scoreBand } from '../../src/core/scoring'
+import { countBand } from '../../src/core/evaluate'
 import type { RobotConfig } from '../../src/core/types'
 
 const layout = parseWpilibLayout(JSON.parse(readFileSync('public/layouts/2026-rebuilt-welded.json', 'utf8')))
@@ -38,7 +38,7 @@ describe('buildCellDetail', () => {
     const i = cellIndex(c, r, result.cols)
     detail.rows.forEach((row, h) => {
       expect(row.score).toBeCloseTo(result.perHeading[i * 4 + h])
-      expect(row.band).toBe(scoreBand(row.score))
+      expect(row.band).toBe(countBand(row.score))
       expect(row.headingDeg).toBe((360 * h) / 4)
     })
   })
@@ -56,9 +56,9 @@ describe('buildCellDetail', () => {
     const scores = detail.rows.map((row) => row.score)
     const minIdx = scores.indexOf(Math.min(...scores))
     expect(detail.worstHeadingDeg).toBe((360 * minIdx) / 4)
-    // and it agrees with the stored minScore for that cell
+    // and it agrees with the stored minCount for that cell
     const i = cellIndex(c, r, result.cols)
-    expect(Math.min(...scores)).toBeCloseTo(result.minScore[i])
+    expect(Math.min(...scores)).toBeCloseTo(result.minCount[i])
   })
 
   it('worstHeadingCameras has one entry per robot camera, tagIds from a fresh evaluatePose at the worst heading', () => {

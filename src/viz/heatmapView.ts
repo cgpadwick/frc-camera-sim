@@ -11,30 +11,30 @@ export interface RGB {
   b: number
 }
 
-// Color ramp stops (0-255 channels). Chosen so score-band boundaries (0, 40, 70 —
-// see core/scoring.ts scoreBand) land on exact stop colors.
-const RED: RGB = { r: 0xd3, g: 0x2f, b: 0x2f } // #d32f2f - score 0 (dead)
-const ORANGE: RGB = { r: 0xff, g: 0x98, b: 0x00 } // #ff9800 - score 40 (poor -> ok boundary)
-const YELLOW: RGB = { r: 0xff, g: 0xeb, b: 0x3b } // #ffeb3b - approached at score -> 70
-const YELLOW_GREEN: RGB = { r: 0xcd, g: 0xdc, b: 0x39 } // #cddc39 - score 70 (ok -> strong boundary)
-const GREEN: RGB = { r: 0x4c, g: 0xaf, b: 0x50 } // #4caf50 - score 100
+// Color stops per visible-tag count (0-255 channels). Boundaries match
+// core/evaluate.ts countBand: 0 dead, 1 poor, 2 ok, 3+ strong.
+const RED: RGB = { r: 0xd3, g: 0x2f, b: 0x2f } // #d32f2f - 0 tags (blind)
+const ORANGE: RGB = { r: 0xff, g: 0x98, b: 0x00 } // #ff9800 - 1 tag (ambiguous)
+const YELLOW: RGB = { r: 0xff, g: 0xeb, b: 0x3b } // #ffeb3b - 2 tags
+const YELLOW_GREEN: RGB = { r: 0xcd, g: 0xdc, b: 0x39 } // #cddc39 - 3 tags
+const GREEN: RGB = { r: 0x4c, g: 0xaf, b: 0x50 } // #4caf50 - 4+ tags
 
 function lerpRgb(a: RGB, b: RGB, t: number): RGB {
   return { r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t }
 }
 
 /**
- * Pure: score (0-100) -> heatmap cell color. Ramp: 0 -> exact red (#d32f2f);
- * (0,40) lerp red->orange; [40,70) lerp orange->yellow; [70,100] lerp
- * yellow-green->green (clamped above 100, matching poseScore's own cap).
- * Segment boundaries deliberately coincide with scoreBand's dead/poor/ok/strong
- * thresholds so a cell's color and its band agree at a glance.
+ * Pure: visible-tag count -> heatmap cell color. Integer counts land on
+ * exact stops (0 red, 1 orange, 2 yellow, 3 yellow-green, 4+ green);
+ * fractional values (the avg-over-headings mode) lerp between adjacent
+ * stops so e.g. 1.5 reads halfway orange->yellow.
  */
-export function scoreToColor(score: number): RGB {
-  if (score <= 0) return RED
-  if (score < 40) return lerpRgb(RED, ORANGE, score / 40)
-  if (score < 70) return lerpRgb(ORANGE, YELLOW, (score - 40) / 30)
-  return lerpRgb(YELLOW_GREEN, GREEN, Math.min(1, (score - 70) / 30))
+export function countToColor(count: number): RGB {
+  if (count <= 0) return RED
+  if (count < 1) return lerpRgb(RED, ORANGE, count)
+  if (count < 2) return lerpRgb(ORANGE, YELLOW, count - 1)
+  if (count < 3) return lerpRgb(YELLOW, YELLOW_GREEN, count - 2)
+  return lerpRgb(YELLOW_GREEN, GREEN, Math.min(1, count - 3))
 }
 
 /**
@@ -59,12 +59,12 @@ export function hitPointToCell(
 /** Builds the RGBA texel buffer for a SweepResult's selected score array (NearestFilter keeps cells crisp, no blending). */
 function buildTextureData(result: SweepResult, mode: 'min' | 'avg'): Uint8Array {
   const { cols, rows } = result
-  const scores = mode === 'min' ? result.minScore : result.avgScore
+  const scores = mode === 'min' ? result.minCount : result.avgCount
   const data = new Uint8Array(cols * rows * 4)
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const i = cellIndex(c, r, cols)
-      const color = scoreToColor(scores[i])
+      const color = countToColor(scores[i])
       const o = i * 4
       data[o] = Math.round(color.r)
       data[o + 1] = Math.round(color.g)

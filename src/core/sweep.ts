@@ -6,7 +6,8 @@ export const DEFAULT_SWEEP: SweepParams = { cellSizeM: 0.25, headingCount: 16 }
 
 export interface SweepResult {
   cols: number; rows: number; cellSizeM: number; headingCount: number
-  minScore: Float32Array; avgScore: Float32Array; perHeading: Float32Array
+  /** Per cell: min/avg UNIQUE visible tag count over the sampled headings; perHeading holds every sample (cell-major). */
+  minCount: Float32Array; avgCount: Float32Array; perHeading: Float32Array
   tagSeen: Record<number, number>; cameraDetections: number[]
 }
 
@@ -19,8 +20,8 @@ export function runSweep(
   const cols = Math.ceil(layout.field.length / params.cellSizeM)
   const rows = Math.ceil(layout.field.width / params.cellSizeM)
   const n = cols * rows
-  const minScore = new Float32Array(n).fill(Infinity)
-  const avgScore = new Float32Array(n)
+  const minCount = new Float32Array(n).fill(Infinity)
+  const avgCount = new Float32Array(n)
   const perHeading = new Float32Array(n * params.headingCount)
   const tagSeen: Record<number, number> = {}
   const cameraDetections = robot.cameras.map(() => 0)
@@ -35,9 +36,9 @@ export function runSweep(
           headingRad: (2 * Math.PI * h) / params.headingCount,
         }
         const ev = evaluatePose(pose, robot, layout, fieldOccluders)
-        perHeading[i * params.headingCount + h] = ev.score
-        minScore[i] = Math.min(minScore[i], ev.score)
-        avgScore[i] += ev.score / params.headingCount
+        perHeading[i * params.headingCount + h] = ev.tagCount
+        minCount[i] = Math.min(minCount[i], ev.tagCount)
+        avgCount[i] += ev.tagCount / params.headingCount
         for (const cam of ev.perCamera) {
           cameraDetections[cam.cameraIndex] += cam.detections.length
           for (const d of cam.detections) tagSeen[d.tagId] = (tagSeen[d.tagId] ?? 0) + 1
@@ -46,5 +47,5 @@ export function runSweep(
     }
     onProgress?.((r + 1) / rows)
   }
-  return { cols, rows, cellSizeM: params.cellSizeM, headingCount: params.headingCount, minScore, avgScore, perHeading, tagSeen, cameraDetections }
+  return { cols, rows, cellSizeM: params.cellSizeM, headingCount: params.headingCount, minCount, avgCount, perHeading, tagSeen, cameraDetections }
 }

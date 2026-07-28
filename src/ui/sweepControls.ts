@@ -1,14 +1,14 @@
 import type { RobotConfig, TagLayout, OccluderBox } from '../core/types'
 import type { SweepResult } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
-import { scoreBand } from '../core/scoring'
+import { countBand } from '../core/evaluate'
 import { evaluatePose } from '../core/evaluate'
 import { BAND_COLORS } from './hud'
 
 export interface CellDetailHeadingRow {
   headingDeg: number
   score: number
-  band: ReturnType<typeof scoreBand>
+  band: ReturnType<typeof countBand>
 }
 
 export interface CellDetailCamera {
@@ -47,7 +47,7 @@ export function buildCellDetail(
   let worstScore = Infinity
   for (let h = 0; h < result.headingCount; h++) {
     const score = result.perHeading[i * result.headingCount + h]
-    rows.push({ headingDeg: (360 * h) / result.headingCount, score, band: scoreBand(score) })
+    rows.push({ headingDeg: (360 * h) / result.headingCount, score, band: countBand(score) })
     if (score < worstScore) {
       worstScore = score
       worstHeading = h
@@ -100,7 +100,7 @@ export interface SweepControlsHandle {
   setReportEnabled(enabled: boolean): void
 }
 
-function bandLabel(band: ReturnType<typeof scoreBand>): string {
+function bandLabel(band: ReturnType<typeof countBand>): string {
   return { dead: 'dead', poor: 'poor', ok: 'ok', strong: 'strong' }[band]
 }
 
@@ -197,7 +197,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       const table = document.createElement('table')
       table.className = 'cell-detail-table'
       const thead = document.createElement('tr')
-      for (const h of ['Heading°', 'Score', 'Band']) {
+      for (const h of ['Heading°', 'Tags', 'Band']) {
         const th = document.createElement('th')
         th.textContent = h
         thead.appendChild(th)
@@ -206,7 +206,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
       for (const row of detail.rows) {
         const tr = document.createElement('tr')
         if (row.headingDeg === detail.worstHeadingDeg) tr.className = 'worst-heading'
-        const cells = [row.headingDeg.toFixed(0), row.score.toFixed(1), bandLabel(row.band)]
+        const cells = [row.headingDeg.toFixed(0), String(Math.round(row.score)), bandLabel(row.band)]
         cells.forEach((text, i) => {
           const td = document.createElement('td')
           td.textContent = text

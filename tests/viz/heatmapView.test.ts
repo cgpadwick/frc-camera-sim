@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { scoreToColor, hitPointToCell, createHeatmapView, HEATMAP_Z, type RGB } from '../../src/viz/heatmapView'
+import { countToColor, hitPointToCell, createHeatmapView, HEATMAP_Z, type RGB } from '../../src/viz/heatmapView'
 import type { SweepResult } from '../../src/core/sweep'
 
 function hue({ r, g, b }: RGB): number {
@@ -18,35 +18,36 @@ function hue({ r, g, b }: RGB): number {
   return h < 0 ? h + 360 : h
 }
 
-describe('scoreToColor', () => {
+describe('countToColor', () => {
   it('0 -> exact #d32f2f', () => {
-    expect(scoreToColor(0)).toEqual({ r: 211, g: 47, b: 47 })
+    expect(countToColor(0)).toEqual({ r: 211, g: 47, b: 47 })
   })
   it('negative scores clamp to the same exact red as 0', () => {
-    expect(scoreToColor(-5)).toEqual({ r: 211, g: 47, b: 47 })
+    expect(countToColor(-5)).toEqual({ r: 211, g: 47, b: 47 })
   })
-  it('band boundary 40 -> exact orange (#ff9800)', () => {
-    expect(scoreToColor(40)).toEqual({ r: 255, g: 152, b: 0 })
+  it('1 tag -> exact orange (#ff9800)', () => {
+    expect(countToColor(1)).toEqual({ r: 255, g: 152, b: 0 })
   })
-  it('band boundary 70 -> exact yellow-green (#cddc39)', () => {
-    expect(scoreToColor(70)).toEqual({ r: 205, g: 220, b: 57 })
+  it('3 tags -> exact yellow-green (#cddc39)', () => {
+    expect(countToColor(3)).toEqual({ r: 205, g: 220, b: 57 })
   })
-  it('100 -> exact green (#4caf50)', () => {
-    expect(scoreToColor(100)).toEqual({ r: 76, g: 175, b: 80 })
+  it('4+ tags -> exact green (#4caf50)', () => {
+    expect(countToColor(4)).toEqual({ r: 76, g: 175, b: 80 })
+    expect(countToColor(9)).toEqual({ r: 76, g: 175, b: 80 })
   })
   it('scores above 100 clamp to the same exact green as 100', () => {
-    expect(scoreToColor(150)).toEqual({ r: 76, g: 175, b: 80 })
+    expect(countToColor(150)).toEqual({ r: 76, g: 175, b: 80 })
   })
   it('hue increases monotonically from red (0) to green (100) with no dips', () => {
-    let prevHue = hue(scoreToColor(0))
+    let prevHue = hue(countToColor(0))
     for (let s = 0.5; s <= 100; s += 0.5) {
-      const h = hue(scoreToColor(s))
+      const h = hue(countToColor(s))
       expect(h).toBeGreaterThanOrEqual(prevHue - 1e-9)
       prevHue = h
     }
   })
-  it('interior points are strictly between their segment endpoints (mid red->orange)', () => {
-    const c = scoreToColor(20)
+  it('fractional counts lerp between adjacent stops (mid red->orange)', () => {
+    const c = countToColor(0.5)
     expect(c.r).toBeGreaterThan(211) // moving from red toward orange, r increases (0xd3 -> 0xff)
     expect(c.g).toBeGreaterThan(47) // g increases (0x2f -> 0x98)
   })
@@ -90,8 +91,8 @@ function fakeResult(cols: number, rows: number, cellSizeM: number): SweepResult 
     rows,
     cellSizeM,
     headingCount: 4,
-    minScore: new Float32Array(n).fill(50),
-    avgScore: new Float32Array(n).fill(60),
+    minCount: new Float32Array(n).fill(50),
+    avgCount: new Float32Array(n).fill(60),
     perHeading: new Float32Array(n * 4),
     tagSeen: {},
     cameraDetections: [],

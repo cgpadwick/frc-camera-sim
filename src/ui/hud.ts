@@ -1,19 +1,19 @@
 import type { PoseEvaluation } from '../core/evaluate'
 import type { RobotConfig } from '../core/types'
-import { scoreBand } from '../core/scoring'
+import { countBand } from '../core/evaluate'
 import { CAMERA_COLORS } from '../viz/frustumView'
 
-/** Single source of truth for score-band -> color, shared by any future consumer (report, UI). */
-export const BAND_COLORS: Record<ReturnType<typeof scoreBand>, string> = {
+/** Single source of truth for count-band -> color, shared by any future consumer (report, UI). */
+export const BAND_COLORS: Record<ReturnType<typeof countBand>, string> = {
   dead: '#f44336',
   poor: '#ff9800',
   ok: '#ffeb3b',
   strong: '#4caf50',
 }
 
-/** Pure: score -> its band's display color. */
-export function colorForScore(score: number): string {
-  return BAND_COLORS[scoreBand(score)]
+/** Pure: visible-tag count -> its band's display color. */
+export function colorForCount(tagCount: number): string {
+  return BAND_COLORS[countBand(tagCount)]
 }
 
 function hexColor(n: number): string {
@@ -44,8 +44,8 @@ export function createHud(container: HTMLElement): Hud {
   return {
     el: root,
     update(ev, robot) {
-      scoreEl.textContent = String(Math.round(ev.score))
-      scoreEl.style.color = colorForScore(ev.score)
+      scoreEl.textContent = `${ev.tagCount} ${ev.tagCount === 1 ? 'tag' : 'tags'}`
+      scoreEl.style.color = colorForCount(ev.tagCount)
 
       if (cameraLines.length !== robot.cameras.length) {
         camerasEl.replaceChildren()

@@ -19,15 +19,15 @@ describe('runSweep', () => {
   it('grid dimensions', () => {
     expect(result.cols).toBe(Math.ceil(16.541 / 1.0))
     expect(result.rows).toBe(Math.ceil(8.069 / 1.0))
-    expect(result.minScore.length).toBe(result.cols * result.rows)
+    expect(result.minCount.length).toBe(result.cols * result.rows)
     expect(result.perHeading.length).toBe(result.cols * result.rows * 4)
   })
   it('min <= avg everywhere', () => {
-    for (let i = 0; i < result.minScore.length; i++)
-      expect(result.minScore[i]).toBeLessThanOrEqual(result.avgScore[i] + 1e-6)
+    for (let i = 0; i < result.minCount.length; i++)
+      expect(result.minCount[i]).toBeLessThanOrEqual(result.avgCount[i] + 1e-6)
   })
   it('single fixed camera: worst-case has blind headings near walls, avg > 0 somewhere', () => {
-    expect(Math.max(...result.avgScore)).toBeGreaterThan(0)
+    expect(Math.max(...result.avgCount)).toBeGreaterThan(0)
   })
   it('progress callback fires and ends at 1', () => {
     const fracs: number[] = []

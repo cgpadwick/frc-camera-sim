@@ -140,7 +140,7 @@ function renderCoverageTable(stats: ReportStats, compare?: { label: string; stat
 }
 
 function renderDeadZones(stats: ReportStats): string {
-  if (stats.deadZones.length === 0) return '<p>No dead zones — every sampled cell had at least one non-zero worst-case score.</p>'
+  if (stats.deadZones.length === 0) return '<p>No dead zones — every sampled cell had at least one visible tag at every heading.</p>'
   const items = stats.deadZones.map((z) => `<li>(${z.xM.toFixed(2)} m, ${z.yM.toFixed(2)} m)</li>`).join('')
   const overflow = stats.deadZoneOverflow > 0 ? `<p class="overflow-note">+${stats.deadZoneOverflow} more not shown</p>` : ''
   return `<ul class="deadzone-list">${items}</ul>${overflow}`

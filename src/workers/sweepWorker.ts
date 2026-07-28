@@ -20,7 +20,7 @@ self.onmessage = (e: MessageEvent) => {
     self.postMessage(
       { type: 'done', result },
       {
-        transfer: [result.minScore.buffer, result.avgScore.buffer, result.perHeading.buffer],
+        transfer: [result.minCount.buffer, result.avgCount.buffer, result.perHeading.buffer],
       },
     )
   } catch (err) {
