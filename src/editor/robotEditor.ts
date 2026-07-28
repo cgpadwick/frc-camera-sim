@@ -2,12 +2,12 @@ import * as THREE from 'three'
 import type { RobotConfig, CameraSpec } from '../core/types'
 import { buildRobot } from '../robot/robotBuilder'
 import { createFrustumView, CAMERA_COLORS } from '../viz/frustumView'
+import { buildCameraGizmo } from '../viz/cameraModel'
 import { disposeObject3D } from '../viz/dispose'
 import { normalToYawPitch } from './placementMath'
 import type { SceneCtx } from '../viz/scene'
 
 const EDITOR_POSE = { x: 0, y: 0, headingRad: 0 } // robot sits at the origin, heading +X
-const HANDLE_RADIUS_M = 0.035
 
 export interface MountUpdate {
   cameraIndex: number
@@ -80,21 +80,19 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     }
     while (handles.children.length < robot.cameras.length) {
       const i = handles.children.length
-      const handle = new THREE.Mesh(
-        new THREE.SphereGeometry(HANDLE_RADIUS_M, 16, 12),
-        new THREE.MeshBasicMaterial({
-          color: CAMERA_COLORS[i % CAMERA_COLORS.length],
-          transparent: true,
-          opacity: 0.85,
-          depthTest: false, // always grabbable, even half-sunk into a face
-        }),
-      )
-      handle.renderOrder = 10
+      // Grab handle = an oversized camera gizmo (body + lens barrel showing
+      // aim), same shape as the field-scene markers but 2x for grabbability.
+      const handle = buildCameraGizmo(CAMERA_COLORS[i % CAMERA_COLORS.length], 2)
       handle.name = `handle-${i}`
       handles.add(handle)
     }
     robot.cameras.forEach((cam, i) => {
-      handles.children[i].position.set(cam.mount.x, cam.mount.y, cam.mount.z)
+      const handle = handles.children[i]
+      handle.position.set(cam.mount.x, cam.mount.y, cam.mount.z)
+      const rollQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), (cam.mount.rollDeg * Math.PI) / 180)
+      const pitchQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (cam.mount.pitchDeg * Math.PI) / 180)
+      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), (cam.mount.yawDeg * Math.PI) / 180)
+      handle.quaternion.multiplyQuaternions(yawQ, pitchQ).multiply(rollQ)
     })
   }
 
@@ -141,10 +139,15 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       }
       return
     }
-    const handleHit = raycaster.intersectObjects(handles.children, false)[0]
+    // Gizmos are Groups — raycast recursively, then walk up to the top-level handle.
+    const handleHit = raycaster.intersectObjects(handles.children, true)[0]
     if (handleHit) {
-      dragIndex = handles.children.indexOf(handleHit.object)
-      ctx.controls.enabled = false
+      let top: THREE.Object3D | null = handleHit.object
+      while (top && top.parent !== handles) top = top.parent
+      if (top) {
+        dragIndex = handles.children.indexOf(top)
+        ctx.controls.enabled = false
+      }
     }
   }
 

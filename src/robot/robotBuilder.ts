@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import type { RobotConfig } from '../core/types'
+import { buildCameraGizmo } from '../viz/cameraModel'
+import { CAMERA_COLORS } from '../viz/frustumView'
 
 const BUMPER_THICKNESS_M = 0.05
 const BUMPER_HEIGHT_M = 0.13
@@ -7,20 +9,10 @@ const BUMPER_Z_M = 0.09
 const POD_RADIUS_M = 0.06
 const POD_HEIGHT_M = 0.15
 const POD_INSET_M = 0.1
-const CAM_MARKER_RADIUS_M = 0.03
-const CAM_MARKER_HEIGHT_M = 0.08
 
 const X_AXIS = new THREE.Vector3(1, 0, 0)
 const Y_AXIS = new THREE.Vector3(0, 1, 0)
 const Z_AXIS = new THREE.Vector3(0, 0, 1)
-
-// THREE.ConeGeometry's tip points along local +Y by default. Camera markers
-// should point along the camera's local +X (its boresight, matching the
-// `p.x` forward axis used by core/visibility.ts's projectToImage). This
-// fixed quaternion re-bases the cone so its tip points along +X before the
-// per-camera mount rotation (roll -> pitch -> yaw, same order/axes as
-// core/math.ts quatFromEuler) is applied on top of it.
-const CONE_TIP_TO_LOCAL_X = new THREE.Quaternion().setFromAxisAngle(Z_AXIS, -Math.PI / 2)
 
 /** Only creates a canvas/texture when a DOM is present; returns null in headless (Node/test) environments. */
 function bumperTexture(teamNumber: string): THREE.Texture | null {
@@ -101,10 +93,8 @@ function addSuperstructure(group: THREE.Group, config: RobotConfig): void {
 }
 
 function addCameraMarkers(group: THREE.Group, config: RobotConfig): void {
-  const material = new THREE.MeshBasicMaterial({ color: 0xffdd00 })
-  const geometry = new THREE.ConeGeometry(CAM_MARKER_RADIUS_M, CAM_MARKER_HEIGHT_M, 12)
   config.cameras.forEach((cam, i) => {
-    const marker = new THREE.Mesh(geometry, material)
+    const marker = buildCameraGizmo(CAMERA_COLORS[i % CAMERA_COLORS.length])
     marker.name = `cam-${i}`
     marker.position.set(cam.mount.x, cam.mount.y, cam.mount.z)
 
@@ -112,8 +102,8 @@ function addCameraMarkers(group: THREE.Group, config: RobotConfig): void {
     const pitchQ = new THREE.Quaternion().setFromAxisAngle(Y_AXIS, (cam.mount.pitchDeg * Math.PI) / 180)
     const yawQ = new THREE.Quaternion().setFromAxisAngle(Z_AXIS, (cam.mount.yawDeg * Math.PI) / 180)
     // Same composition order as core/math.ts quatFromEuler: yaw * pitch * roll.
-    const mountQ = new THREE.Quaternion().multiplyQuaternions(yawQ, pitchQ).multiply(rollQ)
-    marker.quaternion.multiplyQuaternions(mountQ, CONE_TIP_TO_LOCAL_X)
+    // The gizmo's boresight is already local +X, so no cone pre-rotation.
+    marker.quaternion.multiplyQuaternions(yawQ, pitchQ).multiply(rollQ)
 
     group.add(marker)
   })
