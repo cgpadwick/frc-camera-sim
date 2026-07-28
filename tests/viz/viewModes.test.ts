@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { OPTICAL_TO_THREE, viewModeList, nextViewMode, resolveViewMode, letterboxRect } from '../../src/viz/viewModes'
+import { OPTICAL_TO_THREE, viewModeList, nextViewMode, resolveViewMode, letterboxRect, povAspect } from '../../src/viz/viewModes'
 import { cameraFieldPose } from '../../src/core/visibility'
 import type { CameraSpec } from '../../src/core/types'
 
@@ -68,5 +68,18 @@ describe('letterboxRect', () => {
   })
   it('exact fit needs no bars', () => {
     expect(letterboxRect(1600, 1000, 1.6)).toEqual({ x: 0, y: 0, w: 1600, h: 1000 })
+  })
+})
+
+describe('povAspect', () => {
+  it('derives aspect from FOVs, not sensor resolution', () => {
+    // tan(41°)/tan(28°) ≈ 1.635 — noticeably not 1280/800 = 1.6
+    expect(povAspect(82, 56)).toBeCloseTo(Math.tan((41 * Math.PI) / 180) / Math.tan((28 * Math.PI) / 180), 10)
+    expect(povAspect(82, 56)).not.toBeCloseTo(1.6, 2)
+  })
+  it('rendered horizontal FOV round-trips: vfov + povAspect recovers hfov', () => {
+    const aspect = povAspect(75, 47)
+    const recoveredHfovDeg = (2 * Math.atan(aspect * Math.tan((47 * Math.PI) / 360)) * 180) / Math.PI
+    expect(recoveredHfovDeg).toBeCloseTo(75, 10)
   })
 })

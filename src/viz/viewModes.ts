@@ -54,6 +54,19 @@ export interface LetterboxRect {
   h: number
 }
 
+/**
+ * Pure: render aspect for a camera POV, derived from the FOVs themselves —
+ * NOT resWidth/resHeight. Detection (core/visibility.ts) treats hfov and
+ * vfov as independent truth; a three.js camera derives its horizontal FOV
+ * from vfov × aspect, so only this ratio makes the rendered frame match
+ * the detection frustum exactly. With user-entered specs the sensor aspect
+ * is usually close but not equal (82°/56° vs 1280/800 differs by ~1° of
+ * hfov — enough to hide an edge tag that detection counts).
+ */
+export function povAspect(hfovDeg: number, vfovDeg: number): number {
+  return Math.tan((hfovDeg * Math.PI) / 360) / Math.tan((vfovDeg * Math.PI) / 360)
+}
+
 /** Pure: largest rect of the given aspect centered in a canvas (letterbox/pillarbox). */
 export function letterboxRect(canvasW: number, canvasH: number, aspect: number): LetterboxRect {
   const canvasAspect = canvasW / canvasH
@@ -142,7 +155,7 @@ export function createViewManager(ctx: SceneCtx): ViewManager {
         .set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w)
         .multiply(OPTICAL_TO_THREE)
       ctx.camera.fov = spec.vfovDeg
-      ctx.camera.aspect = spec.resWidth / spec.resHeight
+      ctx.camera.aspect = povAspect(spec.hfovDeg, spec.vfovDeg)
       ctx.camera.updateProjectionMatrix()
       // Letterbox to the sensor's aspect; clear the full canvas first so the
       // bars outside the scissor rect stay black instead of holding stale
