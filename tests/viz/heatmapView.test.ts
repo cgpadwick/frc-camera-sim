@@ -94,8 +94,9 @@ function fakeResult(cols: number, rows: number, cellSizeM: number): SweepResult 
     cellSizeM,
     headingCount: 4,
     minCount: new Float32Array(n).fill(50),
-    avgCount: new Float32Array(n).fill(60),
     perHeading: new Float32Array(n * 4),
+    idealCount: new Float32Array(n).fill(3),
+    idealRangeM: 4,
     tagSeen: {},
     cameraDetections: [],
   }
@@ -119,7 +120,7 @@ describe('createHeatmapView', () => {
     const scene = new THREE.Scene()
     const view = createHeatmapView(scene)
     view.show(fakeResult(10, 5, 0.25), 'min')
-    view.show(fakeResult(4, 4, 0.5), 'avg')
+    view.show(fakeResult(4, 4, 0.5), 'ideal')
     const heatmapMeshes: THREE.Mesh[] = []
     scene.traverse((o) => {
       if (o.name === 'heatmap') heatmapMeshes.push(o as THREE.Mesh)

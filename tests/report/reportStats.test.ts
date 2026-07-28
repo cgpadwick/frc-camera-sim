@@ -39,16 +39,6 @@ describe('computeReportStats', () => {
 
 // --- Additional coverage beyond the brief's transcribed tests ---
 
-describe('computeReportStats: bandPctAvg is independent of bandPctMin', () => {
-  it('computed from avgCount, not minCount', () => {
-    // avgVals = [10, 30, 60, 90] -> poor, poor, ok, strong (bands: dead<=0, poor<40, ok<70, strong>=70)
-    const stats = computeReportStats(fakeSweep([0, 1, 2, 3], [0.5, 1.5, 2.5, 3.5]), robot)
-    expect(stats.bandPctAvg.dead).toBeCloseTo(0)
-    expect(stats.bandPctAvg.poor).toBeCloseTo(50)
-    expect(stats.bandPctAvg.ok).toBeCloseTo(25)
-    expect(stats.bandPctAvg.strong).toBeCloseTo(25)
-  })
-})
 
 describe('computeReportStats: dead zone cap', () => {
   it('caps the returned list at 40 and reports the overflow count', () => {

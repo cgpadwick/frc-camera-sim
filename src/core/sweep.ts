@@ -11,8 +11,8 @@ export const DEFAULT_SWEEP: SweepParams = { cellSizeM: 0.25, headingCount: 16, i
 
 export interface SweepResult {
   cols: number; rows: number; cellSizeM: number; headingCount: number
-  /** Per cell: min/avg UNIQUE visible tag count over the sampled headings; perHeading holds every sample (cell-major). */
-  minCount: Float32Array; avgCount: Float32Array; perHeading: Float32Array
+  /** Per cell: minimum UNIQUE visible tag count over the sampled headings (worst-case facing); perHeading holds every sample (cell-major). */
+  minCount: Float32Array; perHeading: Float32Array
   /** Heading-independent upper bound per cell (idealTagCount at params.idealRangeM). */
   idealCount: Float32Array
   idealRangeM: number
@@ -29,7 +29,6 @@ export function runSweep(
   const rows = Math.ceil(layout.field.width / params.cellSizeM)
   const n = cols * rows
   const minCount = new Float32Array(n).fill(Infinity)
-  const avgCount = new Float32Array(n)
   const perHeading = new Float32Array(n * params.headingCount)
   const idealCount = new Float32Array(n)
   const tagSeen: Record<number, number> = {}
@@ -48,7 +47,6 @@ export function runSweep(
         const ev = evaluatePose(pose, robot, layout, fieldOccluders)
         perHeading[i * params.headingCount + h] = ev.tagCount
         minCount[i] = Math.min(minCount[i], ev.tagCount)
-        avgCount[i] += ev.tagCount / params.headingCount
         for (const cam of ev.perCamera) {
           cameraDetections[cam.cameraIndex] += cam.detections.length
           for (const d of cam.detections) tagSeen[d.tagId] = (tagSeen[d.tagId] ?? 0) + 1
@@ -57,7 +55,7 @@ export function runSweep(
     }
     onProgress?.((r + 1) / rows)
   }
-  return { cols, rows, cellSizeM: params.cellSizeM, headingCount: params.headingCount, minCount, avgCount, perHeading, idealCount, idealRangeM: params.idealRangeM, tagSeen, cameraDetections }
+  return { cols, rows, cellSizeM: params.cellSizeM, headingCount: params.headingCount, minCount, perHeading, idealCount, idealRangeM: params.idealRangeM, tagSeen, cameraDetections }
 }
 
 /**
@@ -67,16 +65,14 @@ export function runSweep(
  * Ideal itself scores 100 by construction. Null when the ideal layer is
  * all-zero (no tags reachable anywhere at range N).
  */
-export function coverageScoreVsIdeal(result: SweepResult): { worstPct: number; avgPct: number } | null {
+export function coverageScoreVsIdeal(result: SweepResult): { worstPct: number } | null {
   let sumIdeal = 0
   let sumWorst = 0
-  let sumAvg = 0
   for (let i = 0; i < result.idealCount.length; i++) {
     const ideal = result.idealCount[i]
     sumIdeal += ideal
     sumWorst += Math.min(result.minCount[i], ideal)
-    sumAvg += Math.min(result.avgCount[i], ideal)
   }
   if (sumIdeal <= 0) return null
-  return { worstPct: (100 * sumWorst) / sumIdeal, avgPct: (100 * sumAvg) / sumIdeal }
+  return { worstPct: (100 * sumWorst) / sumIdeal }
 }

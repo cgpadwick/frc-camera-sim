@@ -62,7 +62,7 @@ export function hitPointToCell(
 /** Builds the RGBA texel buffer for a SweepResult's selected score array (NearestFilter keeps cells crisp, no blending). */
 function buildTextureData(result: SweepResult, mode: SweepViewMode): Uint8Array {
   const { cols, rows } = result
-  const scores = mode === 'min' ? result.minCount : mode === 'avg' ? result.avgCount : result.idealCount
+  const scores = mode === 'min' ? result.minCount : result.idealCount
   const data = new Uint8Array(cols * rows * 4)
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {

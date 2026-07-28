@@ -4,7 +4,7 @@ import { cellIndex } from '../core/sweep'
 import { countBand } from '../core/evaluate'
 import { COUNT_STOPS } from '../viz/heatmapView'
 
-export type SweepViewMode = 'min' | 'avg' | 'ideal'
+export type SweepViewMode = 'min' | 'ideal'
 import { evaluatePose } from '../core/evaluate'
 import { BAND_COLORS } from './hud'
 
@@ -104,7 +104,7 @@ export interface SweepControlsHandle {
   /** Show/hide the heatmap color legend (visible only while a sweep is displayed). */
   setLegendVisible(visible: boolean): void
   /** Coverage-vs-ideal score line (null clears/hides it). */
-  setScore(score: { worstPct: number; avgPct: number } | null): void
+  setScore(score: { worstPct: number } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
 }
@@ -147,7 +147,6 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     return label
   }
   bar.appendChild(radio('min', 'Actual — worst heading', true))
-  bar.appendChild(radio('avg', 'Actual — average heading', false))
   bar.appendChild(radio('ideal', 'Ideal — any camera setup', false))
 
   const idealLabel = document.createElement('label')
@@ -304,7 +303,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
         return
       }
       scoreEl.style.display = ''
-      scoreEl.textContent = `Score vs ideal: ${score.worstPct.toFixed(0)} worst · ${score.avgPct.toFixed(0)} avg`
+      scoreEl.textContent = `Score vs ideal: ${score.worstPct.toFixed(0)} / 100`
     },
     setReportEnabled(enabled) {
       reportBtn.disabled = !enabled

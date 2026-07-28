@@ -23,12 +23,8 @@ describe('runSweep', () => {
     expect(result.minCount.length).toBe(result.cols * result.rows)
     expect(result.perHeading.length).toBe(result.cols * result.rows * 4)
   })
-  it('min <= avg everywhere', () => {
-    for (let i = 0; i < result.minCount.length; i++)
-      expect(result.minCount[i]).toBeLessThanOrEqual(result.avgCount[i] + 1e-6)
-  })
-  it('single fixed camera: worst-case has blind headings near walls, avg > 0 somewhere', () => {
-    expect(Math.max(...result.avgCount)).toBeGreaterThan(0)
+  it('single fixed camera: some heading somewhere sees tags', () => {
+    expect(Math.max(...result.perHeading)).toBeGreaterThan(0)
   })
   it('progress callback fires and ends at 1', () => {
     const fracs: number[] = []
@@ -48,24 +44,22 @@ describe('runSweep', () => {
 })
 
 describe('coverageScoreVsIdeal', () => {
-  const fake = (minV: number[], avgV: number[], idealV: number[]): SweepResult => ({
+  const fake = (minV: number[], idealV: number[]): SweepResult => ({
     cols: minV.length, rows: 1, cellSizeM: 1, headingCount: 2,
-    minCount: Float32Array.from(minV), avgCount: Float32Array.from(avgV),
+    minCount: Float32Array.from(minV),
     perHeading: new Float32Array(minV.length * 2),
     idealCount: Float32Array.from(idealV), idealRangeM: 4,
     tagSeen: {}, cameraDetections: [],
   })
-  it('ideal-equals-actual scores 100 both ways', () => {
-    const s = coverageScoreVsIdeal(fake([2, 3], [2, 3], [2, 3]))!
+  it('ideal-equals-actual scores 100', () => {
+    const s = coverageScoreVsIdeal(fake([2, 3], [2, 3]))!
     expect(s.worstPct).toBeCloseTo(100)
-    expect(s.avgPct).toBeCloseTo(100)
   })
   it('half coverage scores 50; actual clamped to ideal cannot exceed 100', () => {
-    const s = coverageScoreVsIdeal(fake([1, 1], [5, 5], [2, 2]))!
-    expect(s.worstPct).toBeCloseTo(50)
-    expect(s.avgPct).toBeCloseTo(100) // 5 clamps to 2 per cell
+    expect(coverageScoreVsIdeal(fake([1, 1], [2, 2]))!.worstPct).toBeCloseTo(50)
+    expect(coverageScoreVsIdeal(fake([5, 5], [2, 2]))!.worstPct).toBeCloseTo(100)
   })
   it('all-zero ideal returns null', () => {
-    expect(coverageScoreVsIdeal(fake([1], [1], [0]))).toBeNull()
+    expect(coverageScoreVsIdeal(fake([1], [0]))).toBeNull()
   })
 })
