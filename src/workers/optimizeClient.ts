@@ -6,6 +6,8 @@ export interface OptimizeProgress {
   evals: number
   totalEvals: number
   bestScore: number
+  /** Pure worst-case coverage % of the incumbent — comparable to the final proposal score. */
+  bestWorstPct: number
   cameraIndex: number
   round: number
 }

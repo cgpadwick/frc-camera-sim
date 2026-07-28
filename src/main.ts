@@ -561,11 +561,12 @@ async function boot() {
     onOptimize() {
       if (!lastSweep || optimizeHandle || config.robot.cameras.length === 0) return
       clearProposal()
-      const coarse = { cellSizeM: 0.5, headingCount: 8, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
+      // 16 headings = the same worst-case standard the final score uses; coarser cells only.
+      const coarse = { cellSizeM: 0.5, headingCount: 16, idealRangeM: resolveIdealRangeM(), rangeCapM: rangeCapM() }
       sweepControls.setOptimizing('Optimizing…')
       const myGeneration = sweepGeneration
       optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
-        sweepControls.setOptimizing(`Optimizing… ${Math.round((100 * p.evals) / p.totalEvals)}% · best ${p.bestScore.toFixed(0)}`)
+        sweepControls.setOptimizing(`Optimizing… ${Math.round((100 * p.evals) / p.totalEvals)}% · best ≈${p.bestWorstPct.toFixed(0)}`)
       })
       optimizeHandle.promise
         .then(async (res) => {

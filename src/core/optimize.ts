@@ -99,7 +99,7 @@ export interface OptimizeOptions {
   restarts?: number
   /** Indices of cameras to leave untouched. */
   lockedCameras?: number[]
-  onProgress?(p: { evals: number; totalEvals: number; bestScore: number; cameraIndex: number; round: number }): void
+  onProgress?(p: { evals: number; totalEvals: number; bestScore: number; bestWorstPct: number; cameraIndex: number; round: number }): void
   /** Return true to abort; the best-so-far result is returned. */
   shouldStop?(): boolean
 }
@@ -417,8 +417,11 @@ function popcount32(v: number): number {
  * to per-cell ideal, plus the mean-coverage tiebreaker), just computed from
  * cached masks.
  */
-function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[]): number {
-  if (grid.idealSum <= 0) return 0
+function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[], parts?: { worstPct: number }): number {
+  if (grid.idealSum <= 0) {
+    if (parts) parts.worstPct = 0
+    return 0
+  }
   let clampedWorstSum = 0
   let headingSum = 0
   const H = grid.headingCount
@@ -439,6 +442,7 @@ function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[]): number {
     clampedWorstSum += Math.min(worst, grid.idealPerCell[cell])
   }
   const worstPct = (100 * clampedWorstSum) / grid.idealSum
+  if (parts) parts.worstPct = worstPct
   const meanTiebreak = headingSum / grid.poses.length / 10
   return worstPct + meanTiebreak * 0.5
 }
@@ -498,7 +502,9 @@ export function optimizeCameraMounts(
     }
     // Initial masks use the general path (user mounts may have roll != 0).
     const masks = working.cameras.map((spec) => cameraMasks(grid, spec, layout.tags, rangeCapM))
-    let bestScore = scoreMasks(grid, masks)
+    const scoreParts = { worstPct: 0 }
+    let bestScore = scoreMasks(grid, masks, scoreParts)
+    let bestWorstPct = scoreParts.worstPct
     evals++
 
     for (let round = 0; round < rounds && !stopped; round++) {
@@ -528,17 +534,18 @@ export function optimizeCameraMounts(
                 candMask = fastCameraMasks(grid, { ...working.cameras[ci], mount }, tagsPre, tagSize, rangeCapM)
                 maskCache.set(key, candMask)
               }
-              const s = scoreMasks(grid, [...others, candMask])
+              const s = scoreMasks(grid, [...others, candMask], scoreParts)
               evals++
               if (s > bestScore) {
                 bestScore = s
+                bestWorstPct = scoreParts.worstPct
                 bestMount = mount
                 bestMask = candMask
               }
             }
             if (stopped) break
           }
-          opts.onProgress?.({ evals, totalEvals, bestScore: Math.max(bestScore, overallBest?.score ?? 0), cameraIndex: ci, round })
+          opts.onProgress?.({ evals, totalEvals, bestScore: Math.max(bestScore, overallBest?.score ?? 0), bestWorstPct, cameraIndex: ci, round })
           if (stopped) break
         }
         working.cameras[ci].mount = bestMount
