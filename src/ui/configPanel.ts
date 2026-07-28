@@ -139,7 +139,9 @@ export function createConfigPanel(opts: ConfigPanelOptions): HTMLElement {
   }
 
   function renderPanel(): void {
-    root.replaceChildren()
+    // Keep the collapse toggle: replaceChildren() rebuilds the whole panel,
+    // and the toggle lives inside root so the .collapsed CSS can scope it.
+    root.replaceChildren(toggle)
 
     // --- Field year ---
     root.appendChild(heading('Field'))
