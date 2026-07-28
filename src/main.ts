@@ -285,6 +285,10 @@ async function boot() {
     },
     onAddCamera: () => editor.armAddCamera(),
     onToggleFrustums: (visible) => setFrustumsVisible(visible),
+    onFrustumOpacity(opacity) {
+      frustumView.setFillOpacity(opacity)
+      editor.setFrustumFillOpacity(opacity)
+    },
     onAddBox() {
       config.robot.superstructure.push({
         center: { x: 0, y: 0, z: config.robot.chassisHeightM + 0.15 },

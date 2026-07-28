@@ -43,6 +43,8 @@ export interface RobotEditor {
   selectBox(index: number | null): void
   /** Show/hide the editor's frustum previews. */
   setFrustumsVisible(visible: boolean): void
+  /** Fill opacity for the editor's frustum previews. */
+  setFrustumFillOpacity(opacity: number): void
   /** Rebuild the robot mesh (dims/superstructure changed via the panel). */
   rebuildRobot(): void
 }
@@ -398,6 +400,7 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     },
     selectBox,
     setFrustumsVisible: (v) => frustums.setVisible(v),
+    setFrustumFillOpacity: (o) => frustums.setFillOpacity(o),
     armAddCamera() {
       addArmed = true
       el().style.cursor = 'crosshair'

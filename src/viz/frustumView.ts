@@ -44,6 +44,9 @@ interface CameraFrustum {
   group: THREE.Group
   lines: THREE.LineSegments
   positions: Float32Array
+  /** Translucent volume fill: apex + 4 far corners, indexed (4 sides + far quad). */
+  fill: THREE.Mesh
+  fillPositions: Float32Array
   dirs: Vec3Like[]
   /** FOV the current `dirs` were computed from — compared each update() so an FOV edit on an existing camera (no count change, so no rebuild()) still recomputes dirs instead of leaving the drawn cone at the stale angle. */
   hfovDeg: number
@@ -70,21 +73,56 @@ function writeFrustumPositions(out: Float32Array, dirs: Vec3Like[], range: numbe
   }
 }
 
-function buildCameraFrustum(spec: CameraSpec, colorIndex: number): CameraFrustum {
+// Indexed triangles over [apex, c0, c1, c2, c3]: 4 side faces + far quad.
+const FILL_INDEX = [0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1, 1, 2, 3, 1, 3, 4]
+
+function buildCameraFrustum(spec: CameraSpec, colorIndex: number, fillOpacity: number): CameraFrustum {
   const dirs = frustumCorners(spec.hfovDeg, spec.vfovDeg)
+  const color = CAMERA_COLORS[colorIndex % CAMERA_COLORS.length]
   const positions = new Float32Array(VERT_COUNT * 3)
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  const material = new THREE.LineBasicMaterial({ color: CAMERA_COLORS[colorIndex % CAMERA_COLORS.length] })
+  const material = new THREE.LineBasicMaterial({ color })
   const lines = new THREE.LineSegments(geometry, material)
+
+  const fillPositions = new Float32Array(5 * 3)
+  const fillGeometry = new THREE.BufferGeometry()
+  fillGeometry.setAttribute('position', new THREE.BufferAttribute(fillPositions, 3))
+  fillGeometry.setIndex(FILL_INDEX)
+  const fill = new THREE.Mesh(
+    fillGeometry,
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: fillOpacity,
+      side: THREE.DoubleSide,
+      depthWrite: false, // translucent volumes must not punch holes in each other
+    }),
+  )
+  fill.visible = fillOpacity > 0
+  fill.renderOrder = 5
+
   const group = new THREE.Group()
-  group.add(lines)
-  return { group, lines, positions, dirs, hfovDeg: spec.hfovDeg, vfovDeg: spec.vfovDeg, lastRange: -1 }
+  group.add(lines, fill)
+  return { group, lines, positions, fill, fillPositions, dirs, hfovDeg: spec.hfovDeg, vfovDeg: spec.vfovDeg, lastRange: -1 }
 }
 
 function disposeCameraFrustum(entry: CameraFrustum): void {
   entry.lines.geometry.dispose()
   ;(entry.lines.material as THREE.Material).dispose()
+  entry.fill.geometry.dispose()
+  ;(entry.fill.material as THREE.Material).dispose()
+}
+
+function writeFillPositions(out: Float32Array, dirs: Vec3Like[], range: number): void {
+  out[0] = 0
+  out[1] = 0
+  out[2] = 0
+  dirs.forEach((d, i) => {
+    out[(i + 1) * 3] = d.x * range
+    out[(i + 1) * 3 + 1] = d.y * range
+    out[(i + 1) * 3 + 2] = d.z * range
+  })
 }
 
 export interface FrustumView {
@@ -92,6 +130,8 @@ export interface FrustumView {
   update(robotPose: RobotPose, robot: RobotConfig, tagSize: number, hiddenIndex?: number | null, rangeCapM?: number): void
   /** Show/hide all frustum wireframes (robot editor declutter toggle). */
   setVisible(visible: boolean): void
+  /** Opacity of the translucent volume fill (0 hides the fill, edges stay). */
+  setFillOpacity(opacity: number): void
 }
 
 /** Live wireframe camera frustums, one per configured camera, reparented under a 'frustums' group. */
@@ -100,6 +140,7 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
   root.name = 'frustums'
   scene.add(root)
   let cameras: CameraFrustum[] = []
+  let fillOpacity = 0.15
 
   function rebuild(specs: CameraSpec[]): void {
     for (const entry of cameras) {
@@ -107,7 +148,7 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
       disposeCameraFrustum(entry)
     }
     cameras = specs.map((spec, i) => {
-      const entry = buildCameraFrustum(spec, i)
+      const entry = buildCameraFrustum(spec, i, fillOpacity)
       root.add(entry.group)
       return entry
     })
@@ -116,6 +157,13 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
   return {
     setVisible(visible) {
       root.visible = visible
+    },
+    setFillOpacity(opacity) {
+      fillOpacity = opacity
+      for (const entry of cameras) {
+        entry.fill.visible = opacity > 0
+        ;(entry.fill.material as THREE.MeshBasicMaterial).opacity = opacity
+      }
     },
     update(robotPose, robot, tagSize, hiddenIndex = null, rangeCapM = Infinity) {
       if (cameras.length !== robot.cameras.length) rebuild(robot.cameras)
@@ -136,6 +184,9 @@ export function createFrustumView(scene: THREE.Scene): FrustumView {
           writeFrustumPositions(entry.positions, entry.dirs, range)
           entry.lines.geometry.attributes.position.needsUpdate = true
           entry.lines.geometry.computeBoundingSphere()
+          writeFillPositions(entry.fillPositions, entry.dirs, range)
+          entry.fill.geometry.attributes.position.needsUpdate = true
+          entry.fill.geometry.computeBoundingSphere()
           entry.lastRange = range
         }
       })

@@ -440,3 +440,16 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   color: #4fc3f7;
   white-space: nowrap;
 }
+
+.tab-bar-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #ccc;
+}
+
+.tab-bar-slider input[type='range'] {
+  width: 90px;
+  accent-color: #4fc3f7;
+}

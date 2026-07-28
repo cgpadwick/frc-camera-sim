@@ -13,6 +13,7 @@ export function createTabBar(opts: {
   onAddCamera(): void
   onAddBox(): void
   onToggleFrustums(visible: boolean): void
+  onFrustumOpacity(opacity: number): void
 }): TabBar {
   const el = document.createElement('div')
   el.className = 'tab-bar'
@@ -68,6 +69,18 @@ export function createTabBar(opts: {
     opts.onToggleFrustums(frustumsVisible)
   })
   el.appendChild(frustumBtn)
+
+  const opacityWrap = document.createElement('label')
+  opacityWrap.className = 'tab-bar-slider'
+  opacityWrap.title = 'Frustum fill opacity (0 = wireframe only)'
+  const opacitySlider = document.createElement('input')
+  opacitySlider.type = 'range'
+  opacitySlider.min = '0'
+  opacitySlider.max = '60'
+  opacitySlider.value = '15'
+  opacitySlider.addEventListener('input', () => opts.onFrustumOpacity(Number(opacitySlider.value) / 100))
+  opacityWrap.append(document.createTextNode('🔺'), opacitySlider)
+  el.appendChild(opacityWrap)
 
   return { el, current: () => mode, setFrustumsVisible: applyFrustumsVisible }
 }
