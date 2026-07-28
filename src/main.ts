@@ -245,7 +245,7 @@ async function boot() {
     '🎯 <b>Click</b> a camera to edit its numbers in the panel',
     '▦ <b>Click a box</b> to move/rotate/scale it (toolbar appears)',
     '⌫ <b>Delete</b> removes the selected box',
-    '🌀 Drag empty space to orbit, scroll to zoom',
+    '🌀 Left-drag orbit · right-drag pan · scroll zoom',
   ]
     .map((l) => `<div>${l}</div>`)
     .join('')

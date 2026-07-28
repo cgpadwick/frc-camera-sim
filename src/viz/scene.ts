@@ -24,6 +24,9 @@ export function createScene(container: HTMLElement): SceneCtx {
   container.appendChild(renderer.domElement)
   const controls = new OrbitControls(camera, renderer.domElement)
   controls.target.set(8.27, 4.03, 0)
+  // Right/middle-drag pans; keep pans parallel to the floor (Z-up world)
+  // instead of the screen plane so the field never drifts underfoot.
+  controls.screenSpacePanning = false
   // PBR materials in glTF field models are near-black without environment lighting
   const pmrem = new THREE.PMREMGenerator(renderer)
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
