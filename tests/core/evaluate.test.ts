@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
-import { evaluatePose, idealTagCount, autoIdealRangeM, cameraBlockedByBoxIndex } from '../../src/core/evaluate'
+import { evaluatePose, idealTagCount, autoIdealRangeM, idealRangeForCap, maxMountOffsetM, cameraBlockedByBoxIndex } from '../../src/core/evaluate'
 import type { RobotConfig } from '../../src/core/types'
 
 const layout = parseWpilibLayout(JSON.parse(readFileSync('public/layouts/2026-rebuilt-welded.json', 'utf8')))
@@ -130,5 +130,35 @@ describe('superstructure self-occlusion is really simulated (QA round 8.2)', () 
     const faceCam = { ...buriedCam, mount: { ...buriedCam.mount, x: 0.319 } }
     const withBox = { ...base, superstructure: [box], cameras: [faceCam] }
     expect(evaluatePose(pose, withBox, oneTag, []).tagCount).toBe(1)
+  })
+})
+
+describe('idealRangeForCap (option A: cap + max mount offset — kills the 5/3 range artifact)', () => {
+  const robotFwd: RobotConfig = {
+    lengthM: 0.75, widthM: 0.75, chassisHeightM: 0.13, teamNumber: '0', superstructure: [],
+    cameras: [{ name: 'f', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+      mount: { x: 0.32, y: 0, z: 0.5, rollDeg: 0, pitchDeg: 0, yawDeg: 0 } }],
+  }
+  it('adds the largest horizontal mount offset to the cap', () => {
+    expect(maxMountOffsetM(robotFwd)).toBeCloseTo(0.32)
+    expect(idealRangeForCap(4, robotFwd)).toBeCloseTo(4.32)
+    expect(idealRangeForCap(4, { ...robotFwd, cameras: [] })).toBe(4)
+  })
+  it("reproduces Chris's contradiction and proves the compensation closes it", () => {
+    // Tag 4.2m from robot CENTER, facing the robot; forward camera at +0.32
+    // is only ~3.88m away. Cap 4: the camera detects; the OLD ideal radius
+    // (4.0 from center) missed it -> actual > ideal. Compensated radius
+    // (4.32) counts it -> domination restored for the range criterion.
+    const layout1 = {
+      field: { length: 16, width: 8 },
+      tags: [{ id: 1, size: 0.1651, pose: { translation: { x: 8.2, y: 4, z: 0.5 }, rotation: { w: 6.123233995736766e-17, x: 0, y: 0, z: 1 } } }],
+    }
+    const pose = { x: 4, y: 4, headingRad: 0 }
+    const actual = evaluatePose(pose, robotFwd, layout1, [], 4).tagCount
+    expect(actual).toBe(1) // camera genuinely sees it under the cap
+    const idealOld = idealTagCount(pose.x, pose.y, layout1, [], 4)
+    expect(idealOld).toBe(0) // the artifact: actual beat the un-compensated ideal
+    const idealFixed = idealTagCount(pose.x, pose.y, layout1, [], idealRangeForCap(4, robotFwd))
+    expect(idealFixed).toBe(1) // compensated ideal dominates
   })
 })

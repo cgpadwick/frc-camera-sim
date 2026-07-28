@@ -67,6 +67,24 @@ export function countBand(tagCount: number): 'dead' | 'poor' | 'ok' | 'strong' {
   return 'strong'
 }
 
+/** Largest horizontal mount offset from robot center across all cameras (0 with none). */
+export function maxMountOffsetM(robot: RobotConfig): number {
+  if (robot.cameras.length === 0) return 0
+  return Math.max(...robot.cameras.map((c) => Math.hypot(c.mount.x, c.mount.y)))
+}
+
+/**
+ * Ideal radius for a manual trusted-range cap: the cap PLUS the largest
+ * mount offset. The ideal eye sits at robot center while real cameras ride
+ * up to maxMountOffsetM closer to a tag, so without the compensation a real
+ * camera could legitimately out-reach the "ideal" near the boundary (the
+ * "5 / 3 tags" artifact). With it: camera detects => camera dist <= cap =>
+ * center dist <= cap + offset => ideal counts the tag.
+ */
+export function idealRangeForCap(capM: number, robot: RobotConfig): number {
+  return capM + maxMountOffsetM(robot)
+}
+
 /**
  * Auto ideal range: the longest reach any configured camera actually has —
  * its detection range plus its horizontal mount offset from robot center

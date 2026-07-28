@@ -7,7 +7,7 @@ import { tryLoadFieldModel } from './field/fieldModelLoader'
 import { buildRobot } from './robot/robotBuilder'
 import { createDriveController } from './sim/driveController'
 import { DEFAULT_CONFIG } from './core/defaults'
-import { evaluatePose, idealTagIds, autoIdealRangeM } from './core/evaluate'
+import { evaluatePose, idealTagIds, autoIdealRangeM, idealRangeForCap } from './core/evaluate'
 import { createFrustumView } from './viz/frustumView'
 import { createTagHighlights } from './viz/tagHighlights'
 import { createHud } from './ui/hud'
@@ -450,9 +450,11 @@ async function boot() {
   function rangeCapM(): number {
     return config.trustedRangeM ?? Infinity
   }
-  /** Ideal-layer radius: the trusted cap when set, else the longest camera reach. */
+  /** Ideal-layer radius: trusted cap + max mount offset when capped (so real cameras can't out-reach the ideal), else the longest camera reach (offset already included). */
   function resolveIdealRangeM(): number {
-    return config.trustedRangeM ?? autoIdealRangeM(config.robot, tagSize)
+    return config.trustedRangeM !== null
+      ? idealRangeForCap(config.trustedRangeM, config.robot)
+      : autoIdealRangeM(config.robot, tagSize)
   }
   let sweepRunning = false
   // Report baseline: a snapshot of ReportStats from a past sweep, captured via
