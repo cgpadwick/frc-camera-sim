@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { SweepResult } from '../core/sweep'
+import type { SweepViewMode } from '../ui/sweepControls'
 import { cellIndex } from '../core/sweep'
 
 /** World-space Z of the heatmap plane: just above the field (0) so it doesn't z-fight. */
@@ -57,9 +58,9 @@ export function hitPointToCell(
 }
 
 /** Builds the RGBA texel buffer for a SweepResult's selected score array (NearestFilter keeps cells crisp, no blending). */
-function buildTextureData(result: SweepResult, mode: 'min' | 'avg'): Uint8Array {
+function buildTextureData(result: SweepResult, mode: SweepViewMode): Uint8Array {
   const { cols, rows } = result
-  const scores = mode === 'min' ? result.minCount : result.avgCount
+  const scores = mode === 'min' ? result.minCount : mode === 'avg' ? result.avgCount : result.idealCount
   const data = new Uint8Array(cols * rows * 4)
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -77,7 +78,7 @@ function buildTextureData(result: SweepResult, mode: 'min' | 'avg'): Uint8Array 
 
 export interface HeatmapView {
   /** (Re)builds and shows the heatmap plane for `result`, colored by `mode`. Disposes any previous plane first. */
-  show(result: SweepResult, mode: 'min' | 'avg'): void
+  show(result: SweepResult, mode: SweepViewMode): void
   /** Disposes the current plane (geometry/material/texture) and removes it from the scene, if present. */
   hide(): void
   /** Raycasts the heatmap plane and converts the hit point to a cell, or null if there's no plane / the ray misses / the hit is outside the grid. */

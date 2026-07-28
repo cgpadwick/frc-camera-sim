@@ -13,7 +13,7 @@ const robot: RobotConfig = {
 
 describe('runSweep', () => {
   // Coarse grid to keep the test fast
-  const params = { cellSizeM: 1.0, headingCount: 4 }
+  const params = { cellSizeM: 1.0, headingCount: 4, idealRangeM: 6 }
   const result = runSweep(layout, robot, [], params)
 
   it('grid dimensions', () => {
@@ -36,4 +36,12 @@ describe('runSweep', () => {
     expect(fracs[fracs.length - 1]).toBeCloseTo(1)
   })
   it('cellIndex row-major', () => expect(cellIndex(2, 3, 17)).toBe(53))
+  it('idealCount present, heading-independent upper bound >= minCount at generous range', () => {
+    expect(result.idealCount.length).toBe(result.cols * result.rows)
+    expect(result.idealRangeM).toBe(6)
+    // Ideal range 6m exceeds the camera's derived ~5.3m detect range, so the
+    // omnidirectional upper bound must dominate the worst-case actual count.
+    for (let i = 0; i < result.minCount.length; i++)
+      expect(result.idealCount[i]).toBeGreaterThanOrEqual(result.minCount[i])
+  })
 })

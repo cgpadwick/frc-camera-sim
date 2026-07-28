@@ -7,6 +7,7 @@ function fakeSweep(minVals: number[], avgVals: number[]): SweepResult {
     cols: minVals.length, rows: 1, cellSizeM: 1, headingCount: 2,
     minCount: Float32Array.from(minVals), avgCount: Float32Array.from(avgVals),
     perHeading: new Float32Array(minVals.length * 2),
+    idealCount: new Float32Array(minVals.length), idealRangeM: 4,
     tagSeen: { 1: 100, 2: 1 }, cameraDetections: [90, 10],
   }
 }

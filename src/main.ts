@@ -22,6 +22,7 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
 import { createSweepControls, buildCellDetail } from './ui/sweepControls'
+import type { SweepViewMode } from './ui/sweepControls'
 import { sweepInWorker } from './workers/sweepClient'
 import { DEFAULT_SWEEP } from './core/sweep'
 import type { SweepResult } from './core/sweep'
@@ -304,7 +305,8 @@ async function boot() {
     /** Layout tag ids at sweep time — computeReportStats needs the full layout id set (not just the ones detected) to report never-seen tags. */
     allTagIds: number[]
   } | null = null
-  let sweepMode: 'min' | 'avg' = 'min'
+  let sweepMode: SweepViewMode = 'min'
+  let sweepIdealRangeM = DEFAULT_SWEEP.idealRangeM
   let sweepRunning = false
   // Report baseline: a snapshot of ReportStats from a past sweep, captured via
   // the "Set as baseline" button, compared against in the report when set.
@@ -410,7 +412,7 @@ async function boot() {
       sweepControls.setRunning(true)
       sweepControls.setProgress(0)
       sweepControls.clearDetail()
-      sweepInWorker(layout, snapshot.robot, fieldOccluders, DEFAULT_SWEEP, (frac) => {
+      sweepInWorker(layout, snapshot.robot, fieldOccluders, { ...DEFAULT_SWEEP, idealRangeM: sweepIdealRangeM }, (frac) => {
         if (sweepGeneration === myGeneration) sweepControls.setProgress(frac)
       })
         .then((result) => {
@@ -436,6 +438,11 @@ async function boot() {
           sweepRunning = false
           sweepControls.setRunning(false)
         })
+    },
+    onIdealRangeChange(rangeM) {
+      sweepIdealRangeM = rangeM
+      // The shown ideal layer was computed at the old range — flag it.
+      if (lastSweep && lastSweep.result.idealRangeM !== rangeM) sweepControls.setStale(true)
     },
     onModeChange(mode) {
       sweepMode = mode

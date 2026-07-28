@@ -2,6 +2,8 @@ import type { RobotConfig, TagLayout, OccluderBox } from '../core/types'
 import type { SweepResult } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
 import { countBand } from '../core/evaluate'
+
+export type SweepViewMode = 'min' | 'avg' | 'ideal'
 import { evaluatePose } from '../core/evaluate'
 import { BAND_COLORS } from './hud'
 
@@ -77,7 +79,9 @@ export function buildCellDetail(
 
 export interface SweepControlsOptions {
   onRun(): void
-  onModeChange(mode: 'min' | 'avg'): void
+  onModeChange(mode: SweepViewMode): void
+  /** Ideal-view range edited; takes effect on the next Run. */
+  onIdealRangeChange(rangeM: number): void
   onClear(): void
   onReport(): void
   onSetBaseline(): void
@@ -123,7 +127,7 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   runBtn.addEventListener('click', () => opts.onRun())
   bar.appendChild(runBtn)
 
-  function radio(value: 'min' | 'avg', labelText: string, checked: boolean): HTMLLabelElement {
+  function radio(value: SweepViewMode, labelText: string, checked: boolean): HTMLLabelElement {
     const label = document.createElement('label')
     label.className = 'sweep-mode-radio'
     const input = document.createElement('input')
@@ -139,6 +143,23 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
   }
   bar.appendChild(radio('min', 'Worst-case heading', true))
   bar.appendChild(radio('avg', 'Average over headings', false))
+  bar.appendChild(radio('ideal', 'Ideal (upper bound)', false))
+
+  const idealLabel = document.createElement('label')
+  idealLabel.className = 'sweep-mode-radio'
+  const idealRangeInput = document.createElement('input')
+  idealRangeInput.type = 'number'
+  idealRangeInput.min = '0.5'
+  idealRangeInput.step = '0.5'
+  idealRangeInput.value = '4'
+  idealRangeInput.style.width = '3.5em'
+  idealRangeInput.title = 'Ideal-view detection range in meters (applies on the next Run)'
+  idealRangeInput.addEventListener('change', () => {
+    const v = Number(idealRangeInput.value)
+    if (Number.isFinite(v) && v > 0) opts.onIdealRangeChange(v)
+  })
+  idealLabel.append(document.createTextNode('Ideal range (m)'), idealRangeInput)
+  bar.appendChild(idealLabel)
 
   const progress = document.createElement('progress')
   progress.max = 1
