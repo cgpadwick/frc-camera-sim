@@ -1,5 +1,5 @@
-import type { RobotPose, RobotConfig, TagLayout, OccluderBox } from './types'
-import { detectTags, robotOccludersInField, segmentHitsBox, shortenedSegment, maxRangeFor, SKEW_MAX_RAD, type Detection } from './visibility'
+import type { RobotPose, RobotConfig, TagLayout, OccluderBox, Vec3 } from './types'
+import { detectTags, robotOccludersInField, segmentHitsBox, shortenedSegment, tagCorners, cameraFieldPose, maxRangeFor, SKEW_MAX_RAD, type Detection } from './visibility'
 import { vec3, sub, length, normalize, dot, rotateVec, scale, add, quatFromEuler } from './math'
 
 export interface PoseEvaluation {
@@ -25,36 +25,58 @@ export function evaluatePose(robotPose: RobotPose, robot: RobotConfig, layout: T
 }
 
 /**
- * Ideal (upper-bound) tag count at a field position: how many tags an
- * omnidirectional, perfectly mounted camera could possibly read from
- * (x, y) — tag within `rangeM`, robot on the tag's front side within the
- * same 65° skew readability limit, ray not blocked by field occluders.
- * Camera FOV/mount/self-occlusion deliberately ignored; heading-irrelevant.
- * The eye point sits at each tag's own height (best case). The gap between
- * this and the actual worst-case count is coverage lost to mounting choices.
+ * Ideal (upper-bound) tag count: PERFECT-LENS cameras at the robot's ACTUAL
+ * mounts. Same eye positions, same range cap, same 65° skew limit, same
+ * 5-ray occlusion (field + robot self-occlusion) — the only removed
+ * constraint is the lens FOV / full-tag-in-image rule. Removing a
+ * constraint can only ADD tags, so actual <= ideal is a mathematical
+ * identity, not a tuning outcome. (The previous center-of-robot definition
+ * could be beaten by off-center mounts near the range boundary — the
+ * "5 / 3 tags" contradiction.) Heading matters now (mounts move with the
+ * robot), which also makes the ideal layer aggregate the same way the
+ * Realistic layer does.
+ *
+ * With zero cameras there are no mounts; falls back to a single eye at the
+ * robot center at each tag's height so the fresh-robot HUD still teaches.
  */
-export function idealTagCount(x: number, y: number, layout: TagLayout, fieldOccluders: OccluderBox[], rangeM: number): number {
-  return idealTagIds(x, y, layout, fieldOccluders, rangeM).length
+export function idealTagCount(pose: RobotPose, robot: RobotConfig, layout: TagLayout, fieldOccluders: OccluderBox[], rangeM: number): number {
+  return idealTagIds(pose, robot, layout, fieldOccluders, rangeM).length
 }
 
-/** Same filters as idealTagCount, returning the qualifying tag ids (for visualization). */
-export function idealTagIds(x: number, y: number, layout: TagLayout, fieldOccluders: OccluderBox[], rangeM: number): number[] {
+/** Same filters as idealTagCount, returning the qualifying tag ids (for the blue rings). */
+export function idealTagIds(pose: RobotPose, robot: RobotConfig, layout: TagLayout, fieldOccluders: OccluderBox[], rangeM: number): number[] {
+  const occluders = [...fieldOccluders, ...robotOccludersInField(pose, robot)]
+  const eyes: Vec3[] =
+    robot.cameras.length > 0
+      ? robot.cameras.map((c) => cameraFieldPose(pose, c).translation)
+      : [] // fallback eye is per-tag (at the tag's height) below
   const ids: number[] = []
   for (const tag of layout.tags) {
     const center = tag.pose.translation
-    const eye = vec3(x, y, center.z)
-    const toEye = sub(eye, center)
-    const dist = length(toEye)
-    if (dist > rangeM || dist < 1e-9) continue
     const tagNormal = rotateVec(tag.pose.rotation, vec3(1, 0, 0))
-    const skew = Math.acos(Math.min(1, Math.max(-1, dot(normalize(toEye), tagNormal))))
-    if (skew > SKEW_MAX_RAD) continue
-    // Same 1cm end-shortening as detectTags so flush-mounted tags don't self-occlude.
-    const dir = normalize(toEye)
-    const a = sub(eye, scale(dir, 0.01))
-    const b = add(center, scale(dir, 0.01))
-    if (fieldOccluders.some((box) => segmentHitsBox(a, b, box))) continue
-    ids.push(tag.id)
+    const corners = tagCorners(tag)
+    const tagEyes = eyes.length > 0 ? eyes : [vec3(pose.x, pose.y, center.z)]
+    let visible = false
+    for (const eye of tagEyes) {
+      const toEye = sub(eye, center)
+      const dist = length(toEye)
+      if (dist > rangeM || dist < 1e-9) continue
+      const skew = Math.acos(Math.min(1, Math.max(-1, dot(normalize(toEye), tagNormal))))
+      if (skew > SKEW_MAX_RAD) continue
+      let blocked = false
+      for (const target of [...corners, center]) {
+        const [a, b] = shortenedSegment(eye, target)
+        if (occluders.some((box) => segmentHitsBox(a, b, box))) {
+          blocked = true
+          break
+        }
+      }
+      if (!blocked) {
+        visible = true
+        break
+      }
+    }
+    if (visible) ids.push(tag.id)
   }
   return ids
 }
@@ -68,17 +90,14 @@ export function countBand(tagCount: number): 'dead' | 'poor' | 'ok' | 'strong' {
 }
 
 /**
- * Auto ideal range: the longest reach any configured camera actually has —
- * its detection range plus its horizontal mount offset from robot center
- * (idealTagCount measures from center, cameras measure from their mount).
- * Guarantees the ideal layer's range never trails the actual cameras, so
- * actual can't exceed ideal. Falls back to 4 m with no cameras.
+ * Auto ideal range: the longest optical reach of any configured camera.
+ * Ideal eyes now sit AT the mounts, so no mount-offset compensation is
+ * needed — a camera's own detection range is the honest bound. Falls back
+ * to 4 m with no cameras.
  */
 export function autoIdealRangeM(robot: RobotConfig, tagSize: number): number {
   if (robot.cameras.length === 0) return 4
-  return Math.max(
-    ...robot.cameras.map((c) => maxRangeFor(c, tagSize) + Math.hypot(c.mount.x, c.mount.y)),
-  )
+  return Math.max(...robot.cameras.map((c) => maxRangeFor(c, tagSize)))
 }
 
 /**

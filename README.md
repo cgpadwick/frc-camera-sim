@@ -93,6 +93,12 @@ the FOV for a tag CENTER — a tag hugging the edge needs its whole body inside,
 so detection near the side edges is slightly stricter than the drawn cone
 (conservative direction).
 
+**The "ideal" layer** — perfect-lens cameras at YOUR actual mounts: same eye
+positions, same range cap, same skew limit, same occlusion rays (including the
+robot's own body) — only the lens FOV / full-tag-in-image constraint removed.
+Because it strictly removes a constraint, actual <= ideal is a mathematical
+identity, enforced by a 300-case fuzz test with no exclusions.
+
 **How correctness is enforced in CI** (`npm test`):
 - `tests/core/boundaryAgreement.test.ts` — the rendered far surface and the
   detection boundary are compared directly: tags straddling the drawn cap must

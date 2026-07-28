@@ -559,7 +559,7 @@ async function boot() {
     robotGroup.rotation.z = drive.pose.headingRad
 
     const ev = evaluatePose(drive.pose, config.robot, layout, fieldOccluders, rangeCapM())
-    const idealIds = idealTagIds(drive.pose.x, drive.pose.y, layout, fieldOccluders, resolveIdealRangeM())
+    const idealIds = idealTagIds(drive.pose, config.robot, layout, fieldOccluders, resolveIdealRangeM())
     viewManager.update(drive.pose, config.robot)
     frustumView.update(drive.pose, config.robot, tagSize, viewManager.povCameraIndex(), rangeCapM())
     tagHighlights.update(ev, config.robot, idealIds)
@@ -665,7 +665,7 @@ async function boot() {
       sweepControls.setOptimizing('Optimizing…')
       const myGeneration = sweepGeneration
       optimizeHandle = optimizeInWorker(structuredClone(config.robot), layout, fieldOccluders, coarse, [], (p) => {
-        sweepControls.setOptimizing(`Optimizing… ${p.evals.toLocaleString()}/${p.totalEvals.toLocaleString()} mounts (${Math.round((100 * p.evals) / p.totalEvals)}%) · best ≈${p.bestWorstPct.toFixed(0)}`)
+        sweepControls.setOptimizing(`Optimizing… ${p.evals.toLocaleString()}/${p.totalEvals.toLocaleString()} mounts (${Math.round((100 * p.evals) / p.totalEvals)}%) · best ≈${p.bestMeanWorst.toFixed(1)} tags/cell`)
       })
       optimizeHandle.promise
         .then(async (res) => {

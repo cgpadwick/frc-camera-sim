@@ -63,3 +63,13 @@ describe('coverageScoreVsIdeal', () => {
     expect(coverageScoreVsIdeal(fake([1], [0]))).toBeNull()
   })
 })
+
+describe('sweep-level domination (5/3 class, eliminated at the map level too)', () => {
+  it('idealCount >= minCount for every cell on the real field', () => {
+    const params = { cellSizeM: 1.5, headingCount: 4, idealRangeM: 5, rangeCapM: 5 }
+    const result = runSweep(layout, robot, [], params)
+    for (let i = 0; i < result.minCount.length; i++) {
+      expect(result.idealCount[i], `cell ${i}`).toBeGreaterThanOrEqual(result.minCount[i])
+    }
+  })
+})

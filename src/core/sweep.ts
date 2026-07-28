@@ -15,7 +15,7 @@ export interface SweepResult {
   cols: number; rows: number; cellSizeM: number; headingCount: number
   /** Per cell: minimum UNIQUE visible tag count over the sampled headings (worst-case facing); perHeading holds every sample (cell-major). */
   minCount: Float32Array; perHeading: Float32Array
-  /** Heading-independent upper bound per cell (idealTagCount at params.idealRangeM). */
+  /** Worst-heading upper bound per cell: perfect-lens cameras at the robot's mounts (min over the sampled headings, matching minCount's aggregation). */
   idealCount: Float32Array
   idealRangeM: number
   tagSeen: Record<number, number>; cameraDetections: number[]
@@ -39,7 +39,7 @@ export function runSweep(
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const i = cellIndex(c, r, cols)
-      idealCount[i] = idealTagCount((c + 0.5) * params.cellSizeM, (r + 0.5) * params.cellSizeM, layout, fieldOccluders, params.idealRangeM)
+      idealCount[i] = Infinity
       for (let h = 0; h < params.headingCount; h++) {
         const pose = {
           x: (c + 0.5) * params.cellSizeM,
@@ -49,6 +49,7 @@ export function runSweep(
         const ev = evaluatePose(pose, robot, layout, fieldOccluders, params.rangeCapM ?? Infinity)
         perHeading[i * params.headingCount + h] = ev.tagCount
         minCount[i] = Math.min(minCount[i], ev.tagCount)
+        idealCount[i] = Math.min(idealCount[i], idealTagCount(pose, robot, layout, fieldOccluders, params.idealRangeM))
         for (const cam of ev.perCamera) {
           cameraDetections[cam.cameraIndex] += cam.detections.length
           for (const d of cam.detections) tagSeen[d.tagId] = (tagSeen[d.tagId] ?? 0) + 1
