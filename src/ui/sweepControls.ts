@@ -144,9 +144,9 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
     label.append(input, document.createTextNode(labelText))
     return label
   }
-  bar.appendChild(radio('min', 'Worst-case heading', true))
-  bar.appendChild(radio('avg', 'Average over headings', false))
-  bar.appendChild(radio('ideal', 'Ideal (upper bound)', false))
+  bar.appendChild(radio('min', 'Actual — worst heading', true))
+  bar.appendChild(radio('avg', 'Actual — average heading', false))
+  bar.appendChild(radio('ideal', 'Ideal — any camera setup', false))
 
   const idealLabel = document.createElement('label')
   idealLabel.className = 'sweep-mode-radio'
