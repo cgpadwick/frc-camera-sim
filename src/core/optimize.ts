@@ -95,7 +95,7 @@ export interface OptimizeOptions {
   pitchOffsetsDeg?: number[]
   /** Greedy passes over all cameras. */
   rounds?: number
-  /** Independent greedy runs: 1 from the current config + (restarts-1) from deterministic random seeds; best wins. */
+  /** Independent greedy runs: 1 from the current config + (restarts-1) from deterministic random seeds; best wins. Structured cluster-fan seeds are always added on top (see fanSeeds). */
   restarts?: number
   /** Indices of cameras to leave untouched. */
   lockedCameras?: number[]
@@ -448,6 +448,40 @@ function scoreMasks(grid: PoseGrid, maskArrays: Uint32Array[], parts?: { worstPc
 }
 
 /**
+ * Structured seeds the greedy cannot reach on its own: all cameras clustered
+ * at a box-top center in an even yaw fan. Moving cameras there ONE AT A TIME
+ * passes through worse intermediates (the abandoned face goes blind before
+ * the cluster compensates), so coordinate descent never discovers the fan
+ * from a spread start — but started FROM the fan it polishes it happily.
+ * (Found via user report: hand-placed cluster beat the optimizer 40 vs 31.)
+ */
+export function fanSeeds(robot: RobotConfig): CameraSpec['mount'][][] {
+  const n = robot.cameras.length
+  if (n === 0) return []
+  const seeds: CameraSpec['mount'][][] = []
+  for (const box of robot.superstructure) {
+    const topZ = box.center.z + box.size.z / 2 + 0.02
+    // Pitch is coordinated too: one up-tilted camera among level ones loses
+    // more than it gains, so the tilt must arrive as a whole-fan seed.
+    for (const baseYaw of [0, 45]) {
+      for (const pitchDeg of [0, -15]) {
+        seeds.push(
+          robot.cameras.map((_, k) => ({
+            x: Number(box.center.x.toFixed(3)),
+            y: Number(box.center.y.toFixed(3)),
+            z: Number(topZ.toFixed(3)),
+            rollDeg: 0,
+            pitchDeg,
+            yawDeg: normDeg(baseYaw + (k * 360) / n),
+          })),
+        )
+      }
+    }
+  }
+  return seeds
+}
+
+/**
  * Greedy coordinate optimization: cameras are optimized one at a time over
  * the sampled mount candidates x aim offsets, keeping the best after each
  * camera, for `rounds` passes. Only mount poses change — FOV/resolution
@@ -482,19 +516,29 @@ export function optimizeCameraMounts(
   let evals = 0
   let stopped = false
   const freeCamCount = robot.cameras.filter((_, i) => !locked.has(i)).length
-  const effectiveRestarts = freeCamCount > 0 ? restarts : 1
+
+  // Seed list: the user's config, structured cluster-fan seeds (only when no
+  // cameras are locked — a fan seed moves every camera), then deterministic
+  // scatters. Greedy polishes each; best final result wins.
+  const seedMounts: (CameraSpec['mount'][] | null)[] = [null] // null = current config
+  if (freeCamCount === robot.cameras.length) for (const f of fanSeeds(robot)) seedMounts.push(f)
+  const scatterCount = freeCamCount > 0 ? Math.max(0, restarts - 1) : 0
+  for (let sc = 0; sc < scatterCount; sc++) seedMounts.push([]) // [] = scatter marker
   const totalEvals =
-    effectiveRestarts * (1 + rounds * freeCamCount * candidates.length * yawOffsets.length * pitchOffsets.length)
+    seedMounts.length * (1 + rounds * freeCamCount * candidates.length * yawOffsets.length * pitchOffsets.length)
 
   let overallBest: OptimizeResult | null = null
 
-  for (let restart = 0; restart < effectiveRestarts && !stopped; restart++) {
+  for (let restart = 0; restart < seedMounts.length && !stopped; restart++) {
     const working: RobotConfig = structuredClone(robot)
     const freeCams = working.cameras.map((_, i) => i).filter((i) => !locked.has(i))
-    if (restart > 0) {
-      // Deterministic pseudo-random seeding (no RNG: reproducible runs) —
-      // scatter free cameras across candidate mounts to escape the local
-      // optimum the user's current layout sits in.
+    const seed = seedMounts[restart]
+    if (seed && seed.length === working.cameras.length) {
+      working.cameras.forEach((c, i) => {
+        c.mount = { ...seed[i] }
+      })
+    } else if (seed) {
+      // Deterministic pseudo-random scatter (no RNG: reproducible runs).
       freeCams.forEach((ci, k) => {
         const cand = candidates[(restart * 7919 + k * 104729) % candidates.length]
         working.cameras[ci].mount = { x: cand.x, y: cand.y, z: cand.z, rollDeg: 0, yawDeg: cand.yawDeg, pitchDeg: cand.pitchDeg }
