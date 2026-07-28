@@ -92,3 +92,15 @@ describe('createTagHighlights', () => {
     expect(offset).toBeCloseTo(0.01, 6)
   })
 })
+
+describe('highlightColorFor with ideal layer', () => {
+  it('detected wins over ideal (green)', () => {
+    expect(highlightColorFor([0], true)).toBe(0x2ecc40)
+  })
+  it('ideal-only -> blue', () => {
+    expect(highlightColorFor([], true)).toBe(0x4fc3f7)
+  })
+  it('neither -> hidden', () => {
+    expect(highlightColorFor([], false)).toBeNull()
+  })
+})

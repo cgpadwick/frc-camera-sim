@@ -3,25 +3,28 @@ import type { PoseEvaluation } from '../core/evaluate'
 import type { RobotConfig } from '../core/types'
 
 const DETECTED_GREEN = 0x2ecc40
+const IDEAL_BLUE = 0x4fc3f7
 const RING_INNER_M = 0.12
 const RING_OUTER_M = 0.16
 const RING_OFFSET_M = 0.01
 const EMPTY: readonly number[] = []
 
 /**
- * Pure: given the indices of cameras currently detecting one tag, decide
- * the highlight ring's color, or null if it should be hidden. 0 detections
- * -> hidden; any detection -> green ("this tag is contributing to
- * localization"). Which camera sees it is readable from the frustum
- * colors/HUD instead.
+ * Pure: ring color for one tag. Detected by any camera -> green ("feeding
+ * localization"). Not detected but counted by the ideal layer -> blue
+ * ("readable from here, your cameras miss it"). Neither -> hidden (the tag
+ * is physically unreadable from this pose: wrong side, too far, too skewed,
+ * or occluded).
  */
-export function highlightColorFor(cameraIndices: readonly number[]): number | null {
-  if (cameraIndices.length === 0) return null
-  return DETECTED_GREEN
+export function highlightColorFor(cameraIndices: readonly number[], idealVisible = false): number | null {
+  if (cameraIndices.length > 0) return DETECTED_GREEN
+  if (idealVisible) return IDEAL_BLUE
+  return null
 }
 
 export interface TagHighlights {
-  update(ev: PoseEvaluation, robot: RobotConfig): void
+  /** `idealIds`: tags the ideal layer counts at the current pose — shown as blue rings when not actually detected. */
+  update(ev: PoseEvaluation, robot: RobotConfig, idealIds?: readonly number[]): void
 }
 
 /**
@@ -60,8 +63,8 @@ export function createTagHighlights(fieldGroup: THREE.Group): TagHighlights {
     return ring
   }
 
-  function applyRingState(ring: THREE.Mesh, cameraIndices: readonly number[]): void {
-    const color = highlightColorFor(cameraIndices)
+  function applyRingState(ring: THREE.Mesh, cameraIndices: readonly number[], idealVisible: boolean): void {
+    const color = highlightColorFor(cameraIndices, idealVisible)
     if (color === null) {
       ring.visible = false
       return
@@ -71,7 +74,7 @@ export function createTagHighlights(fieldGroup: THREE.Group): TagHighlights {
   }
 
   return {
-    update(ev, _robot) {
+    update(ev, _robot, idealIds = EMPTY) {
       for (const arr of detectingCamerasByTag.values()) arr.length = 0
       for (const cam of ev.perCamera) {
         for (const d of cam.detections) {
@@ -83,13 +86,19 @@ export function createTagHighlights(fieldGroup: THREE.Group): TagHighlights {
           arr.push(cam.cameraIndex)
         }
       }
+      const idealSet = new Set(idealIds)
       for (const [tagId, ring] of rings) {
-        applyRingState(ring, detectingCamerasByTag.get(tagId) ?? EMPTY)
+        applyRingState(ring, detectingCamerasByTag.get(tagId) ?? EMPTY, idealSet.has(tagId))
+      }
+      for (const tagId of idealSet) {
+        if (rings.has(tagId)) continue
+        const ring = ringFor(tagId)
+        if (ring) applyRingState(ring, detectingCamerasByTag.get(tagId) ?? EMPTY, true)
       }
       for (const [tagId, cams] of detectingCamerasByTag) {
         if (cams.length === 0 || rings.has(tagId)) continue
         const ring = ringFor(tagId)
-        if (ring) applyRingState(ring, cams)
+        if (ring) applyRingState(ring, cams, idealSet.has(tagId))
       }
     },
   }

@@ -34,7 +34,12 @@ export function evaluatePose(robotPose: RobotPose, robot: RobotConfig, layout: T
  * this and the actual worst-case count is coverage lost to mounting choices.
  */
 export function idealTagCount(x: number, y: number, layout: TagLayout, fieldOccluders: OccluderBox[], rangeM: number): number {
-  let count = 0
+  return idealTagIds(x, y, layout, fieldOccluders, rangeM).length
+}
+
+/** Same filters as idealTagCount, returning the qualifying tag ids (for visualization). */
+export function idealTagIds(x: number, y: number, layout: TagLayout, fieldOccluders: OccluderBox[], rangeM: number): number[] {
+  const ids: number[] = []
   for (const tag of layout.tags) {
     const center = tag.pose.translation
     const eye = vec3(x, y, center.z)
@@ -49,9 +54,9 @@ export function idealTagCount(x: number, y: number, layout: TagLayout, fieldOccl
     const a = sub(eye, scale(dir, 0.01))
     const b = add(center, scale(dir, 0.01))
     if (fieldOccluders.some((box) => segmentHitsBox(a, b, box))) continue
-    count++
+    ids.push(tag.id)
   }
-  return count
+  return ids
 }
 
 /** Display bands for a tag count: 0 dead, 1 poor (ambiguous), 2 ok, 3+ strong. */
