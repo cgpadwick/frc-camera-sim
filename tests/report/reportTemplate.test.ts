@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { renderReport } from '../../src/report/reportTemplate'
+import { robotWireframeModel } from '../../src/report/robotWireframe'
 import type { ReportStats } from '../../src/report/report'
 import { DEFAULT_CONFIG } from '../../src/core/defaults'
 
@@ -57,7 +58,7 @@ describe('renderReport', () => {
 
   it('has NO dead-zone table (removed by user request) and embeds images when provided', () => {
     const html = renderReport(makeStats(), DEFAULT_CONFIG, undefined, {
-      images: { realisticMap: 'data:image/png;base64,AAA', idealMap: 'data:image/png;base64,BBB', robotViews: { persp: 'data:image/png;base64,CCC', top: 'data:image/png;base64,DDD', front: 'data:image/png;base64,EEE', side: 'data:image/png;base64,FFF' } },
+      images: { realisticMap: 'data:image/png;base64,AAA', idealMap: 'data:image/png;base64,BBB', robotViews: { persp: 'data:image/png;base64,CCC' } },
     })
     expect(html).not.toContain('Dead zones')
     expect(html).toContain('Coverage maps')
@@ -65,16 +66,51 @@ describe('renderReport', () => {
     expect(html).toContain('data:image/png;base64,BBB')
     expect(html).toContain('Robot &amp; camera placement')
     expect(html).toContain('data:image/png;base64,CCC')
-    expect(html).toContain('data:image/png;base64,DDD')
-    expect(html).toContain('data:image/png;base64,EEE')
-    expect(html).toContain('data:image/png;base64,FFF')
-    expect(html).toContain('Top (front points up)')
     expect(html).toContain('0 (blind)') // legend strip present with the maps
   })
   it('omits image sections when no images are passed', () => {
     const html = renderReport(makeStats(), DEFAULT_CONFIG)
     expect(html).not.toContain('Coverage maps')
     expect(html).not.toContain('Robot &amp; camera placement')
+    expect(html).not.toContain('<canvas id="robot3d">')
+  })
+
+  it('embeds the interactive 3D viewer + camera mount table when robotModel is provided', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      robot: {
+        ...DEFAULT_CONFIG.robot,
+        cameras: [
+          { name: 'front-cam', hfovDeg: 75, vfovDeg: 47, resWidth: 1280, resHeight: 800, maxRangeM: null,
+            mount: { x: 0.312, y: -0.05, z: 0.41, rollDeg: 0, pitchDeg: -12.5, yawDeg: 30 } },
+        ],
+      },
+    }
+    const model = robotWireframeModel(config.robot)
+    const html = renderReport(makeStats(), config, undefined, { robotModel: model })
+    // Viewer canvas + inline script (no src — still self-contained).
+    expect(html).toContain('<canvas id="robot3d">')
+    expect(html).toContain('drag rotate')
+    expect(html).not.toMatch(/<script\s+src/i)
+    expect(html).not.toMatch(/https?:\/\//)
+    // Serialized model rides inside the script.
+    expect(html).toContain(JSON.stringify(model))
+    // The inline script must not accidentally terminate its own element early:
+    // exactly one opener and one closer.
+    expect((html.match(/<script>/g) ?? []).length).toBe(1)
+    expect((html.match(/<\/script>/g) ?? []).length).toBe(1)
+    // Mount table: one row per camera with position + RPY columns.
+    expect(html).toContain('Camera mounts')
+    expect(html).toContain('Roll (°)')
+    expect(html).toContain('Pitch (°)')
+    expect(html).toContain('Yaw (°)')
+    for (const cam of config.robot.cameras) {
+      expect(html).toContain(cam.name)
+      expect(html).toContain(cam.mount.x.toFixed(3))
+      expect(html).toContain(cam.mount.pitchDeg.toFixed(1))
+    }
+    assertBalancedTags(html, 'table')
+    assertBalancedTags(html, 'tr')
   })
 
   it('includes per-camera contribution bars', () => {

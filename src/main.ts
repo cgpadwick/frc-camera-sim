@@ -36,6 +36,7 @@ import type { OccluderBox, RobotConfig, SimConfig, TagLayout } from './core/type
 import { computeReportStats } from './report/report'
 import type { ReportStats } from './report/report'
 import { renderReport, openReport } from './report/reportTemplate'
+import { robotWireframeModel } from './report/robotWireframe'
 import { heatmapDataUrl } from './report/mapImage'
 
 // Stable key for the "field model unavailable" banner, so switching between
@@ -679,10 +680,11 @@ async function boot() {
         images: {
           realisticMap: heatmapDataUrl(lastSweep.result, 'min'),
           idealMap: heatmapDataUrl(lastSweep.result, 'ideal'),
-          // The editor scene holds the robot with gizmos/cones regardless of
-          // the active tab — snapshot it offscreen from four angles.
+          // Offscreen render of the editor scene — the print/static fallback
+          // for the interactive viewer below.
           robotViews: editor.snapshots(640, 480),
         },
+        robotModel: robotWireframeModel(lastSweep.config.robot),
       })
       openReport(html)
     },

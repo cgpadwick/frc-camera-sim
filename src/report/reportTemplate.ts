@@ -49,9 +49,11 @@ export interface RenderReportOptions {
     realisticMap?: string
     /** Theoretical-best coverage map. */
     idealMap?: string
-    /** Robot renders with camera gizmos and aim cones: perspective + ortho views. */
-    robotViews?: { persp: string; top: string; front: string; side: string }
+    /** Robot render with camera gizmos and aim cones (print/static fallback + hero). */
+    robotViews?: { persp: string }
   }
+  /** Wireframe model for the embedded interactive 3D viewer. */
+  robotModel?: import('./robotWireframe').WireframeModel
 }
 
 /** Shared count-color legend strip under the embedded maps. */
@@ -122,6 +124,14 @@ export function renderReport(
   .legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
   .legend-swatch { width: 0.9rem; height: 0.9rem; border-radius: 2px; border: 1px solid #999; display: inline-block; }
   .note-sub { color: #555; font-size: 0.85rem; }
+  .viewer-wrap { border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
+  #robot3d { width: 100%; height: 380px; display: block; cursor: grab; touch-action: none; }
+  .chip { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; margin-right: 0.4rem; border: 1px solid #999; vertical-align: baseline; }
+  .print-fallback { display: none; }
+  @media print {
+    .viewer-wrap { display: none; }
+    .print-fallback { display: block; }
+  }
   @media print {
     body { margin: 0.5rem; }
     .note { break-inside: avoid; }
@@ -134,14 +144,11 @@ export function renderReport(
 ${occluderNote}
 ${stats.scoreVsIdeal ? `<p class="score-line"><b>Coverage score vs ideal: ${stats.scoreVsIdeal.worstPct.toFixed(0)} / 100 (worst-case heading)</b> — field-wide tags seen as a percentage of what an omnidirectional ideal setup would see (ideal = 100).</p>` : ''}
 ${
-  opts?.images?.robotViews
+  opts?.images?.robotViews || opts?.robotModel
     ? `<h2>Robot &amp; camera placement</h2>
-<img class="report-img robot-img" src="${opts.images.robotViews.persp}" alt="Robot with camera positions and aim cones (3/4 view)">
-<div class="ortho-row">
-<figure><img class="report-img" src="${opts.images.robotViews.top}" alt="Top view"><figcaption>Top (front points up)</figcaption></figure>
-<figure><img class="report-img" src="${opts.images.robotViews.front}" alt="Front view"><figcaption>Front</figcaption></figure>
-<figure><img class="report-img" src="${opts.images.robotViews.side}" alt="Side view"><figcaption>Side (left)</figcaption></figure>
-</div>`
+${opts?.robotModel ? renderRobotViewer(opts.robotModel) : ''}
+${opts?.images?.robotViews ? `<img class="report-img robot-img print-fallback" src="${opts.images.robotViews.persp}" alt="Robot with camera positions and aim cones (3/4 view)">` : ''}
+${renderMountTable(config)}`
     : ''
 }
 ${
@@ -166,6 +173,67 @@ ${tagSection}
 </body>
 </html>
 `
+}
+
+/** Camera mount table: position + roll/pitch/yaw per camera, color-chipped. */
+function renderMountTable(config: SimConfig): string {
+  if (config.robot.cameras.length === 0) return ''
+  const rows = config.robot.cameras
+    .map((cam, i) => {
+      const m = cam.mount
+      const chip = `<span class="chip" style="background:${hexColor(CAMERA_COLORS[i % CAMERA_COLORS.length])}"></span>`
+      return `<tr><td>${chip}${escapeHtml(cam.name)}</td><td>${m.x.toFixed(3)}</td><td>${m.y.toFixed(3)}</td><td>${m.z.toFixed(3)}</td><td>${m.rollDeg.toFixed(1)}</td><td>${m.pitchDeg.toFixed(1)}</td><td>${m.yawDeg.toFixed(1)}</td><td>${cam.hfovDeg.toFixed(1)}° × ${cam.vfovDeg.toFixed(1)}°</td></tr>`
+    })
+    .join('')
+  return `<h3>Camera mounts (robot frame: +X front, +Y left, meters / degrees; pitch +down)</h3>
+<table><tr><th>Camera</th><th>X (m)</th><th>Y (m)</th><th>Z (m)</th><th>Roll (°)</th><th>Pitch (°)</th><th>Yaw (°)</th><th>FOV</th></tr>${rows}</table>`
+}
+
+/** Dependency-free interactive 3D wireframe viewer (canvas 2D projection): drag = rotate, wheel = zoom, right-drag = pan. */
+function renderRobotViewer(model: import('./robotWireframe').WireframeModel): string {
+  const data = JSON.stringify(model)
+  // Assembled from plain strings (no nested template literals) and must
+  // never contain the byte sequence that would close the script element.
+  const src = [
+    '(function(){',
+    'var M=' + data + ';',
+    "var cv=document.getElementById('robot3d');if(!cv)return;var g=cv.getContext('2d');",
+    'var yaw=0.8,pitch=0.55,dist=Math.max(2.5,M.fitRadius*2.6);',
+    'var tgt=[0,0,M.targetZ];var fl=560;',
+    'function draw(){',
+    ' var dpr=window.devicePixelRatio||1;var w=cv.clientWidth,h=cv.clientHeight;',
+    ' if(cv.width!==w*dpr){cv.width=w*dpr;cv.height=h*dpr;}',
+    ' g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle="#14161c";g.fillRect(0,0,w,h);',
+    ' var cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);',
+    ' var fwd=[cp*cy,cp*sy,-sp];',
+    ' var camp=[tgt[0]-fwd[0]*dist,tgt[1]-fwd[1]*dist,tgt[2]-fwd[2]*dist];',
+    ' var right=[fwd[1],-fwd[0],0];var rl=Math.hypot(right[0],right[1])||1;right=[right[0]/rl,right[1]/rl,0];',
+    ' var up=[right[1]*fwd[2],-right[0]*fwd[2],right[0]*fwd[1]-right[1]*fwd[0]];',
+    ' function pr(p){var d=[p[0]-camp[0],p[1]-camp[1],p[2]-camp[2]];',
+    '  var z=d[0]*fwd[0]+d[1]*fwd[1]+d[2]*fwd[2];if(z<0.05)return null;',
+    '  var x=d[0]*right[0]+d[1]*right[1];var y=d[0]*up[0]+d[1]*up[1]+d[2]*up[2];',
+    '  return [w/2+x*fl/z,h/2-y*fl/z];}',
+    ' g.lineWidth=1.4;',
+    ' for(var i=0;i<M.lines.length;i++){var L=M.lines[i];g.strokeStyle=L.color;g.beginPath();var pen=false;',
+    '  for(var j=0;j<L.pts.length;j++){var q=pr(L.pts[j]);if(!q){pen=false;continue;}',
+    '   if(pen)g.lineTo(q[0],q[1]);else{g.moveTo(q[0],q[1]);pen=true;}}',
+    '  g.stroke();}',
+    ' g.fillStyle="#9aa4b0";g.font="12px system-ui";g.fillText("drag rotate · wheel zoom · right-drag pan",10,h-10);',
+    '}',
+    'var drag=null;',
+    "cv.addEventListener('contextmenu',function(e){e.preventDefault();});",
+    "cv.addEventListener('pointerdown',function(e){drag={x:e.clientX,y:e.clientY,b:e.button};cv.setPointerCapture(e.pointerId);});",
+    "cv.addEventListener('pointermove',function(e){if(!drag)return;var dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;",
+    ' if(drag.b===2||e.shiftKey){var cp=Math.cos(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);',
+    '  var k=dist/fl;tgt[0]+=(-dx*sy - dy* -Math.sin(pitch)*cy)*k;tgt[1]+=(dx*cy - dy* -Math.sin(pitch)*sy)*k;tgt[2]+=dy*cp*k;}',
+    ' else{yaw-=dx*0.008;pitch=Math.min(1.5,Math.max(-1.5,pitch+dy*0.008));}',
+    ' draw();});',
+    "cv.addEventListener('pointerup',function(){drag=null;});",
+    "cv.addEventListener('wheel',function(e){e.preventDefault();dist=Math.min(30,Math.max(0.8,dist*(e.deltaY>0?1.12:0.9)));draw();},{passive:false});",
+    'draw();window.addEventListener("resize",draw);',
+    '})();',
+  ].join('\n')
+  return `<div class="viewer-wrap"><canvas id="robot3d"></canvas></div>\n<script>${src}<\/script>`
 }
 
 function renderCoverageTable(stats: ReportStats, compare?: { label: string; stats: ReportStats }): string {
