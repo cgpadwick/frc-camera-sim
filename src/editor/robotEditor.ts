@@ -54,8 +54,8 @@ export interface RobotEditor {
   rebuildRobot(): void
   /** Frame the robot: centered, comfortable distance, ~35° elevation (QA round 7B). */
   frameRobot(): void
-  /** Offscreen PNG of the robot with camera gizmos + aim cones (for the report). */
-  snapshot(width: number, height: number): string
+  /** Offscreen PNGs of the robot with camera gizmos + aim cones for the report: perspective 3/4 plus orthographic top/front/side, all framed wide enough to include the cones. */
+  snapshots(width: number, height: number): { persp: string; top: string; front: string; side: string }
 }
 
 export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): RobotEditor {
@@ -142,6 +142,8 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
   handles.name = 'camera-handles'
   scene.add(handles)
   const frustums = createFrustumView(scene, { outlineFirst: true })
+  // Tracks the app-level cone toggle so snapshots can force cones on and restore.
+  let frustumsVisibleLocal = true
 
   // --- Superstructure box editing (crayon-CAD style) ---
   const tc = new TransformControls(ctx.camera, ctx.renderer.domElement)
@@ -423,41 +425,79 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     },
     selectBox,
     selectCamera: (index) => select(index),
-    snapshot(width, height) {
-      // Fresh state, gizmos hidden: the report wants the robot, not the editor chrome.
+    snapshots(width, height) {
+      // Fresh state; report wants the robot + its aim cones, not editor chrome.
       const robot = opts.getRobot()
       syncHandles(robot)
+      // Cones ARE the payload here — force them visible and give every
+      // camera the full fill (no outline-first dimming), restore after.
+      frustums.setVisible(true)
       frustums.update(EDITOR_POSE, robot, opts.getTagSize(), null, EDITOR_CONE_PREVIEW_M, null)
       const helper = tc.getHelper()
       const helperWasVisible = helper.visible
       helper.visible = false
       if (selectionBox) selectionBox.visible = false
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
-      renderer.setSize(width, height)
-      const cam = new THREE.PerspectiveCamera(45, width / height, 0.05, 50)
-      cam.up.set(0, 0, 1)
+      // Frame radius includes the cones: farthest mount + preview length.
       let r = Math.hypot(robot.lengthM / 2, robot.widthM / 2)
       let top = robot.chassisHeightM
       for (const b of robot.superstructure) {
         r = Math.max(r, Math.hypot(Math.abs(b.center.x) + b.size.x / 2, Math.abs(b.center.y) + b.size.y / 2))
         top = Math.max(top, b.center.z + b.size.z / 2)
       }
-      const dist = Math.max(1.6, r * 3.4)
+      let coneR = r
+      for (const c of robot.cameras) {
+        coneR = Math.max(coneR, Math.hypot(c.mount.x, c.mount.y) + EDITOR_CONE_PREVIEW_M)
+        top = Math.max(top, c.mount.z + EDITOR_CONE_PREVIEW_M * 0.5)
+      }
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+      renderer.setSize(width, height)
+      const zC = top / 2
+      const aspect = width / height
+
+      const shoot = (cam: THREE.Camera): string => {
+        renderer.render(scene, cam)
+        return renderer.domElement.toDataURL('image/png')
+      }
+
+      // Perspective 3/4, wide enough for the cones.
+      const persp = new THREE.PerspectiveCamera(45, aspect, 0.05, 100)
+      persp.up.set(0, 0, 1)
+      const dist = Math.max(2.5, coneR * 2.6)
       const elev = (32 * Math.PI) / 180
       const azim = (45 * Math.PI) / 180
-      cam.position.set(
+      persp.position.set(
         Math.cos(azim) * Math.cos(elev) * dist,
         -Math.sin(azim) * Math.cos(elev) * dist,
-        top / 2 + Math.sin(elev) * dist,
+        zC + Math.sin(elev) * dist,
       )
-      cam.lookAt(0, 0, top / 2)
-      renderer.render(scene, cam)
-      const url = renderer.domElement.toDataURL('image/png')
+      persp.lookAt(0, 0, zC)
+
+      // Orthographic views: half-extent fits the cone radius.
+      const h = coneR * 1.12
+      const ortho = (): THREE.OrthographicCamera => {
+        const cam = new THREE.OrthographicCamera(-h * aspect, h * aspect, h, -h, 0.05, 100)
+        cam.up.set(0, 0, 1)
+        return cam
+      }
+      const topCam = ortho()
+      topCam.position.set(0, 0, 20)
+      topCam.up.set(1, 0, 0) // robot FRONT points up in the top view
+      topCam.lookAt(0, 0, 0)
+      const frontCam = ortho()
+      frontCam.position.set(20, 0, zC)
+      frontCam.lookAt(0, 0, zC)
+      const sideCam = ortho()
+      sideCam.position.set(0, 20, zC)
+      sideCam.lookAt(0, 0, zC)
+
+      const out = { persp: shoot(persp), top: shoot(topCam), front: shoot(frontCam), side: shoot(sideCam) }
       renderer.dispose()
       helper.visible = helperWasVisible
       if (selectionBox) selectionBox.visible = true
-      return url
+      frustums.setVisible(frustumsVisibleLocal)
+      return out
     },
     frameRobot() {
       const robot = opts.getRobot()
@@ -479,7 +519,10 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
       )
       ctx.controls.target.set(0, 0, targetZ)
     },
-    setFrustumsVisible: (v) => frustums.setVisible(v),
+    setFrustumsVisible: (v) => {
+      frustumsVisibleLocal = v
+      frustums.setVisible(v)
+    },
     setFrustumFillOpacity: (o) => frustums.setFillOpacity(o),
     armAddCamera() {
       // Deselect first: an attached gizmo eats the placement click (7b fix 3).

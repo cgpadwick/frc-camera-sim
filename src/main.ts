@@ -680,8 +680,8 @@ async function boot() {
           realisticMap: heatmapDataUrl(lastSweep.result, 'min'),
           idealMap: heatmapDataUrl(lastSweep.result, 'ideal'),
           // The editor scene holds the robot with gizmos/cones regardless of
-          // the active tab — snapshot it offscreen.
-          robot: editor.snapshot(640, 480),
+          // the active tab — snapshot it offscreen from four angles.
+          robotViews: editor.snapshots(640, 480),
         },
       })
       openReport(html)

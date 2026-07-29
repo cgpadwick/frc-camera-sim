@@ -49,8 +49,8 @@ export interface RenderReportOptions {
     realisticMap?: string
     /** Theoretical-best coverage map. */
     idealMap?: string
-    /** Robot render with camera gizmos and aim cones. */
-    robot?: string
+    /** Robot renders with camera gizmos and aim cones: perspective + ortho views. */
+    robotViews?: { persp: string; top: string; front: string; side: string }
   }
 }
 
@@ -114,6 +114,10 @@ export function renderReport(
   .maps figcaption { font-size: 0.85rem; color: #555; margin-top: 0.25rem; }
   .report-img { width: 100%; height: auto; border: 1px solid #ccc; image-rendering: pixelated; }
   .robot-img { max-width: 480px; image-rendering: auto; }
+  .ortho-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .ortho-row figure { margin: 0; flex: 1 1 200px; }
+  .ortho-row img { image-rendering: auto; }
+  .ortho-row figcaption { font-size: 0.85rem; color: #555; margin-top: 0.25rem; }
   .legend { display: flex; gap: 1rem; margin: 0.5rem 0 0.25rem; font-size: 0.85rem; }
   .legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
   .legend-swatch { width: 0.9rem; height: 0.9rem; border-radius: 2px; border: 1px solid #999; display: inline-block; }
@@ -130,9 +134,14 @@ export function renderReport(
 ${occluderNote}
 ${stats.scoreVsIdeal ? `<p class="score-line"><b>Coverage score vs ideal: ${stats.scoreVsIdeal.worstPct.toFixed(0)} / 100 (worst-case heading)</b> — field-wide tags seen as a percentage of what an omnidirectional ideal setup would see (ideal = 100).</p>` : ''}
 ${
-  opts?.images?.robot
+  opts?.images?.robotViews
     ? `<h2>Robot &amp; camera placement</h2>
-<img class="report-img robot-img" src="${opts.images.robot}" alt="Robot with camera positions and aim cones">`
+<img class="report-img robot-img" src="${opts.images.robotViews.persp}" alt="Robot with camera positions and aim cones (3/4 view)">
+<div class="ortho-row">
+<figure><img class="report-img" src="${opts.images.robotViews.top}" alt="Top view"><figcaption>Top (front points up)</figcaption></figure>
+<figure><img class="report-img" src="${opts.images.robotViews.front}" alt="Front view"><figcaption>Front</figcaption></figure>
+<figure><img class="report-img" src="${opts.images.robotViews.side}" alt="Side view"><figcaption>Side (left)</figcaption></figure>
+</div>`
     : ''
 }
 ${

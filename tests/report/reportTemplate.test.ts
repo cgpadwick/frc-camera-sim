@@ -57,7 +57,7 @@ describe('renderReport', () => {
 
   it('has NO dead-zone table (removed by user request) and embeds images when provided', () => {
     const html = renderReport(makeStats(), DEFAULT_CONFIG, undefined, {
-      images: { realisticMap: 'data:image/png;base64,AAA', idealMap: 'data:image/png;base64,BBB', robot: 'data:image/png;base64,CCC' },
+      images: { realisticMap: 'data:image/png;base64,AAA', idealMap: 'data:image/png;base64,BBB', robotViews: { persp: 'data:image/png;base64,CCC', top: 'data:image/png;base64,DDD', front: 'data:image/png;base64,EEE', side: 'data:image/png;base64,FFF' } },
     })
     expect(html).not.toContain('Dead zones')
     expect(html).toContain('Coverage maps')
@@ -65,6 +65,10 @@ describe('renderReport', () => {
     expect(html).toContain('data:image/png;base64,BBB')
     expect(html).toContain('Robot &amp; camera placement')
     expect(html).toContain('data:image/png;base64,CCC')
+    expect(html).toContain('data:image/png;base64,DDD')
+    expect(html).toContain('data:image/png;base64,EEE')
+    expect(html).toContain('data:image/png;base64,FFF')
+    expect(html).toContain('Top (front points up)')
     expect(html).toContain('0 (blind)') // legend strip present with the maps
   })
   it('omits image sections when no images are passed', () => {
