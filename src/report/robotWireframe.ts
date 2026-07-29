@@ -6,12 +6,22 @@ import type { Vec3 } from '../core/types'
 export interface WireframeModel {
   /** Colored polylines in robot frame, meters. */
   lines: { color: string; pts: [number, number, number][] }[]
+  /** Translucent convex polygons (robot frame) painted back-to-front beneath the lines. */
+  faces: { color: string; alpha: number; pts: [number, number, number][] }[]
   /** Suggested initial camera distance / target height for the viewer. */
   fitRadius: number
   targetZ: number
 }
 
 const CONE_LEN = 1.5
+
+/** Translucent fill alphas: frustum volume matches the app viewer's default (0.15); boxes stay subtler so the colored cones read first. */
+const FRUSTUM_FILL_ALPHA = 0.15
+const CHASSIS_FILL_ALPHA = 0.12
+const BODY_FILL_ALPHA = 0.15
+
+/** Segments per edge of the frustum's spherical-cap fill grid (matches the arc sampling below). */
+const CAP_SEG = 6
 
 function hex(n: number): string {
   return `#${n.toString(16).padStart(6, '0')}`
@@ -42,18 +52,41 @@ function boxEdges(cx: number, cy: number, cz: number, sx: number, sy: number, sz
   return E
 }
 
+/** 6 quads of a yaw-rotated box (same corner layout as boxEdges). */
+function boxFaces(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, yawDeg: number): [number, number, number][][] {
+  const c = Math.cos((yawDeg * Math.PI) / 180)
+  const s = Math.sin((yawDeg * Math.PI) / 180)
+  const corner = (ix: number, iy: number, iz: number): [number, number, number] => {
+    const lx = (ix ? 1 : -1) * (sx / 2)
+    const ly = (iy ? 1 : -1) * (sy / 2)
+    return [cx + lx * c - ly * s, cy + lx * s + ly * c, cz + (iz ? 1 : -1) * (sz / 2)]
+  }
+  return [
+    [corner(0, 0, 0), corner(1, 0, 0), corner(1, 1, 0), corner(0, 1, 0)], // bottom
+    [corner(0, 0, 1), corner(1, 0, 1), corner(1, 1, 1), corner(0, 1, 1)], // top
+    [corner(0, 0, 0), corner(1, 0, 0), corner(1, 0, 1), corner(0, 0, 1)], // -y side
+    [corner(0, 1, 0), corner(1, 1, 0), corner(1, 1, 1), corner(0, 1, 1)], // +y side
+    [corner(1, 0, 0), corner(1, 1, 0), corner(1, 1, 1), corner(1, 0, 1)], // front
+    [corner(0, 0, 0), corner(0, 1, 0), corner(0, 1, 1), corner(0, 0, 1)], // back
+  ]
+}
+
 /**
  * Pure: serialize the robot (chassis, body shapes, camera gizmos + aim
  * cones) into colored polylines for the report's embedded 3D viewer.
  */
 export function robotWireframeModel(robot: RobotConfig): WireframeModel {
   const lines: WireframeModel['lines'] = []
+  const faces: WireframeModel['faces'] = []
   const body = '#8a94a2'
   const chassis = '#c9d2dc'
 
   // Chassis + front marker.
   for (const pts of boxEdges(0, 0, robot.chassisHeightM / 2, robot.lengthM, robot.widthM, robot.chassisHeightM, 0)) {
     lines.push({ color: chassis, pts })
+  }
+  for (const pts of boxFaces(0, 0, robot.chassisHeightM / 2, robot.lengthM, robot.widthM, robot.chassisHeightM, 0)) {
+    faces.push({ color: chassis, alpha: CHASSIS_FILL_ALPHA, pts })
   }
   lines.push({
     color: '#ffc107',
@@ -66,6 +99,9 @@ export function robotWireframeModel(robot: RobotConfig): WireframeModel {
   for (const b of robot.superstructure) {
     for (const pts of boxEdges(b.center.x, b.center.y, b.center.z, b.size.x, b.size.y, b.size.z, b.yawDeg)) {
       lines.push({ color: body, pts })
+    }
+    for (const pts of boxFaces(b.center.x, b.center.y, b.center.z, b.size.x, b.size.y, b.size.z, b.yawDeg)) {
+      faces.push({ color: body, alpha: BODY_FILL_ALPHA, pts })
     }
   }
 
@@ -88,7 +124,7 @@ export function robotWireframeModel(robot: RobotConfig): WireframeModel {
     }
     const arc: [number, number, number][] = []
     const uv: [number, number][] = []
-    const SEG = 6
+    const SEG = CAP_SEG
     for (let k = 0; k <= SEG; k++) uv.push([-1 + (2 * k) / SEG, 1])
     for (let k = 1; k <= SEG; k++) uv.push([1, 1 - (2 * k) / SEG])
     for (let k = 1; k <= SEG; k++) uv.push([1 - (2 * k) / SEG, -1])
@@ -98,9 +134,30 @@ export function robotWireframeModel(robot: RobotConfig): WireframeModel {
       arc.push(toWorld(vec3(p.x, p.y, p.z)))
     }
     lines.push({ color, pts: arc })
+
+    // Translucent volume fill mirroring the app viewer: apex fanned to the
+    // curved boundary (side sheets) + the spherical cap itself as a quad grid.
+    const apex: [number, number, number] = [m.x, m.y, m.z]
+    for (let k = 0; k < arc.length - 1; k++) {
+      faces.push({ color, alpha: FRUSTUM_FILL_ALPHA, pts: [apex, arc[k], arc[k + 1]] })
+    }
+    const capAt = (u: number, v: number): [number, number, number] => {
+      const p = sphericalCapPoint(u, v, cam.hfovDeg, cam.vfovDeg, CONE_LEN)
+      return toWorld(vec3(p.x, p.y, p.z))
+    }
+    for (let r = 0; r < SEG; r++) {
+      const v0 = -1 + (2 * r) / SEG
+      const v1 = -1 + (2 * (r + 1)) / SEG
+      for (let c = 0; c < SEG; c++) {
+        const u0 = -1 + (2 * c) / SEG
+        const u1 = -1 + (2 * (c + 1)) / SEG
+        faces.push({ color, alpha: FRUSTUM_FILL_ALPHA, pts: [capAt(u0, v0), capAt(u1, v0), capAt(u1, v1), capAt(u0, v1)] })
+      }
+    }
+
     fitRadius = Math.max(fitRadius, Math.hypot(m.x, m.y) + CONE_LEN)
     top = Math.max(top, m.z + CONE_LEN * 0.5)
   })
 
-  return { lines, fitRadius, targetZ: top / 2 }
+  return { lines, faces, fitRadius, targetZ: top / 2 }
 }

@@ -82,4 +82,43 @@ describe('robotWireframeModel', () => {
     const m = robotWireframeModel({ ...base, cameras: [cam(0), cam(90, 0)] })
     expect(JSON.parse(JSON.stringify(m))).toEqual(m)
   })
+
+  it('boxes emit 6 translucent faces each (chassis + superstructure)', () => {
+    const robot: RobotConfig = {
+      ...base,
+      superstructure: [{ center: { x: 0, y: 0, z: 0.3 }, size: { x: 0.2, y: 0.2, z: 0.2 }, yawDeg: 0 }],
+    }
+    const m = robotWireframeModel(robot)
+    expect(m.faces.filter((f) => f.color === '#c9d2dc').length).toBe(6)
+    expect(m.faces.filter((f) => f.color === '#8a94a2').length).toBe(6)
+    for (const f of m.faces) {
+      expect(f.alpha).toBeGreaterThan(0)
+      expect(f.alpha).toBeLessThan(1)
+      expect(f.pts.length).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('a camera adds a translucent volume fill: side sheets from the apex + cap grid at range', () => {
+    const bare = robotWireframeModel(base)
+    const m = robotWireframeModel({ ...base, cameras: [cam(0)] })
+    const camFaces = m.faces.slice(bare.faces.length)
+    expect(camFaces.length).toBeGreaterThan(0)
+    for (const f of camFaces) {
+      for (const [x, y, z] of f.pts) {
+        // Every fill vertex is the apex or within the preview range of it.
+        expect(Math.hypot(x - 0.3, y - 0, z - 0.4)).toBeLessThanOrEqual(1.5 + 1e-9)
+      }
+    }
+    // Side sheets start at the apex; cap quads all sit exactly at range.
+    const triangles = camFaces.filter((f) => f.pts.length === 3)
+    const quads = camFaces.filter((f) => f.pts.length === 4)
+    expect(triangles.length).toBe(24) // 4 edges × CAP_SEG segments
+    expect(quads.length).toBe(36) // CAP_SEG × CAP_SEG cap grid
+    for (const f of triangles) expect(f.pts[0]).toEqual([0.3, 0, 0.4])
+    for (const f of quads) {
+      for (const [x, y, z] of f.pts) {
+        expect(Math.hypot(x - 0.3, y - 0, z - 0.4)).toBeCloseTo(1.5, 6)
+      }
+    }
+  })
 })
