@@ -214,6 +214,12 @@ function renderRobotViewer(model: import('./robotWireframe').WireframeModel): st
     '  var x=d[0]*right[0]+d[1]*right[1];var y=d[0]*up[0]+d[1]*up[1]+d[2]*up[2];',
     '  return [w/2+x*fl/z,h/2-y*fl/z];}',
     ' function rgba(hex,a){var n=parseInt(hex.slice(1),16);return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")";}',
+    // Floor grid at z=0 (0.5 m spacing), drawn first so everything sits on it.
+    ' var N=Math.ceil(M.fitRadius+0.5);g.strokeStyle="#232830";g.lineWidth=1;',
+    ' for(var i=-2*N;i<=2*N;i++){var ga=pr([i*0.5,-N,0]),gb=pr([i*0.5,N,0]);',
+    '  if(ga&&gb){g.beginPath();g.moveTo(ga[0],ga[1]);g.lineTo(gb[0],gb[1]);g.stroke();}',
+    '  ga=pr([-N,i*0.5,0]);gb=pr([N,i*0.5,0]);',
+    '  if(ga&&gb){g.beginPath();g.moveTo(ga[0],ga[1]);g.lineTo(gb[0],gb[1]);g.stroke();}}',
     // Translucent faces first, painter-sorted far-to-near, so the wireframe
     // edges stay crisp on top (the app viewer's depthWrite:false look).
     ' var F=M.faces||[];var order=[];',
@@ -231,6 +237,9 @@ function renderRobotViewer(model: import('./robotWireframe').WireframeModel): st
     '  for(var j=0;j<L.pts.length;j++){var q=pr(L.pts[j]);if(!q){pen=false;continue;}',
     '   if(pen)g.lineTo(q[0],q[1]);else{g.moveTo(q[0],q[1]);pen=true;}}',
     '  g.stroke();}',
+    ' var LB=M.labels||[];g.font="bold 12px ui-monospace,Menlo,monospace";',
+    ' for(var i=0;i<LB.length;i++){var lq=pr(LB[i].pos);',
+    '  if(lq){g.fillStyle=LB[i].color;g.fillText(LB[i].text,lq[0]+6,lq[1]);}}',
     ' g.fillStyle="#9aa4b0";g.font="12px system-ui";g.fillText("drag rotate · wheel zoom · right-drag pan",10,h-10);',
     '}',
     'var drag=null;',

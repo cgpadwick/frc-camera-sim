@@ -22,7 +22,7 @@ describe('robotWireframeModel', () => {
 
   it('all chassis points lie within the chassis box bounds', () => {
     const m = robotWireframeModel(base)
-    for (const l of m.lines.filter((l) => l.color === '#c9d2dc')) {
+    for (const l of m.lines.filter((l) => l.color === '#ef5350')) {
       for (const [x, y, z] of l.pts) {
         expect(Math.abs(x)).toBeLessThanOrEqual(0.4 + 1e-9)
         expect(Math.abs(y)).toBeLessThanOrEqual(0.3 + 1e-9)
@@ -40,7 +40,7 @@ describe('robotWireframeModel', () => {
     const m = robotWireframeModel(robot)
     expect(m.lines.length).toBe(7 + 6)
     // Yawed 45°: corners land on the axes at ±(half-diagonal) = ±0.1*sqrt(2).
-    const boxPts = m.lines.filter((l) => l.color === '#8a94a2').flatMap((l) => l.pts)
+    const boxPts = m.lines.filter((l) => l.color === '#c9d2dc').flatMap((l) => l.pts)
     const maxX = Math.max(...boxPts.map((p) => Math.abs(p[0])))
     expect(maxX).toBeCloseTo(0.1 * Math.SQRT2, 5)
   })
@@ -51,7 +51,7 @@ describe('robotWireframeModel', () => {
     // 4 edge rays + 1 arc polyline per camera.
     expect(fwd.lines.length).toBe(7 + 5)
     const coneTip = (m: ReturnType<typeof robotWireframeModel>) =>
-      m.lines.filter((l) => !['#c9d2dc', '#ffc107', '#8a94a2'].includes(l.color))
+      m.lines.filter((l) => !['#ef5350', '#ffc107', '#c9d2dc'].includes(l.color))
     // Forward camera's far points extend to +x beyond the mount; rear camera's to -x.
     const fwdMax = Math.max(...coneTip(fwd).flatMap((l) => l.pts.map((p) => p[0])))
     const backMin = Math.min(...coneTip(back).flatMap((l) => l.pts.map((p) => p[0])))
@@ -65,7 +65,7 @@ describe('robotWireframeModel', () => {
 
   it('arc points sit at the cone preview distance from the mount (spherical cap)', () => {
     const m = robotWireframeModel({ ...base, cameras: [cam(0)] })
-    const cone = m.lines.filter((l) => !['#c9d2dc', '#ffc107', '#8a94a2'].includes(l.color))
+    const cone = m.lines.filter((l) => !['#ef5350', '#ffc107', '#c9d2dc'].includes(l.color))
     const arc = cone[cone.length - 1]
     for (const [x, y, z] of arc.pts) {
       expect(Math.hypot(x - 0.3, y - 0, z - 0.4)).toBeCloseTo(1.5, 6)
@@ -89,7 +89,7 @@ describe('robotWireframeModel', () => {
       superstructure: [{ center: { x: 0, y: 0, z: 0.3 }, size: { x: 0.2, y: 0.2, z: 0.2 }, yawDeg: 0 }],
     }
     const m = robotWireframeModel(robot)
-    expect(m.faces.filter((f) => f.color === '#c9d2dc').length).toBe(6)
+    expect(m.faces.filter((f) => f.color === '#c62828').length).toBe(6)
     expect(m.faces.filter((f) => f.color === '#8a94a2').length).toBe(6)
     for (const f of m.faces) {
       expect(f.alpha).toBeGreaterThan(0)
@@ -111,14 +111,17 @@ describe('robotWireframeModel', () => {
     }
     // Side sheets start at the apex; cap quads all sit exactly at range.
     const triangles = camFaces.filter((f) => f.pts.length === 3)
-    const quads = camFaces.filter((f) => f.pts.length === 4)
+    const dist = (p: [number, number, number]) => Math.hypot(p[0] - 0.3, p[1] - 0, p[2] - 0.4)
+    // Quads split into the mount-marker cube (tiny, near the mount) and the cap grid (at range).
+    const cubeQuads = camFaces.filter((f) => f.pts.length === 4 && f.pts.every((p) => dist(p) < 0.1))
+    const capQuads = camFaces.filter((f) => f.pts.length === 4 && f.pts.every((p) => dist(p) > 1))
     expect(triangles.length).toBe(24) // 4 edges × CAP_SEG segments
-    expect(quads.length).toBe(36) // CAP_SEG × CAP_SEG cap grid
+    expect(cubeQuads.length).toBe(6)
+    expect(capQuads.length).toBe(36) // CAP_SEG × CAP_SEG cap grid
+    expect(cubeQuads.length + capQuads.length).toBe(camFaces.length - triangles.length)
     for (const f of triangles) expect(f.pts[0]).toEqual([0.3, 0, 0.4])
-    for (const f of quads) {
-      for (const [x, y, z] of f.pts) {
-        expect(Math.hypot(x - 0.3, y - 0, z - 0.4)).toBeCloseTo(1.5, 6)
-      }
+    for (const f of capQuads) {
+      for (const p of f.pts) expect(dist(p)).toBeCloseTo(1.5, 6)
     }
   })
 })
