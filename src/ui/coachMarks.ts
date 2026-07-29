@@ -95,3 +95,13 @@ export function showInspectMark(anchor: HTMLElement): void {
 export function firstSweepPending(): boolean {
   return !flagged(INSPECT_KEY)
 }
+
+/** Forget the one-shot coach marks so they replay on next load (help card's "replay tips"). */
+export function resetFirstRunFlags(): void {
+  try {
+    localStorage.removeItem(ONBOARD_KEY)
+    localStorage.removeItem(INSPECT_KEY)
+  } catch {
+    /* ignore */
+  }
+}

@@ -19,6 +19,7 @@ import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
 import { createTabBar } from './ui/tabs'
 import { showFirstRunMarks, showInspectMark, firstSweepPending } from './ui/coachMarks'
+import { createHelpCard } from './ui/helpCard'
 import { createSetupChecklist, diffRobotEdits } from './ui/setupChecklist'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
@@ -250,6 +251,7 @@ async function boot() {
       // A2: Esc backs out of transient UI regardless of focus target.
       sweepControls.clearDetail()
       purposeChip.remove()
+      helpCard.close()
       for (const mark of document.querySelectorAll('.coach-mark')) mark.remove()
       detachRobotGizmo()
       return
@@ -355,6 +357,14 @@ async function boot() {
   editorHints.append(hintRow, legend)
   editorHints.style.display = 'none'
   app.appendChild(editorHints)
+
+  // On-demand guide card — always available, both modes.
+  const helpCard = createHelpCard({
+    onReplayTips() {
+      location.reload()
+    },
+  })
+  app.appendChild(helpCard.el)
 
   // Purpose chip: tells a cold-load user what the tool is FOR and what to
   // press first; gone forever once they've ever completed a sweep.

@@ -869,3 +869,64 @@ button:disabled {
   gap: 6px;
   align-items: center;
 }
+
+/* --- On-demand guide card ("? Guide", both modes) --- */
+.help-card-wrap {
+  position: absolute;
+  top: 12px;
+  right: 332px; /* flush left of .config-panel */
+  z-index: 12;
+  font-family: var(--ui-font);
+}
+.help-fab {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  background: #22262e;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.help-fab:hover { background: #2c313b; }
+.help-card {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 340px;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(20, 22, 28, 0.97);
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.help-card-title {
+  font-weight: bold;
+  font-size: 14px;
+  margin: 10px 0 4px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 3px;
+}
+.help-card-title:first-child { margin-top: 0; }
+.help-card-row { margin: 5px 0; }
+.help-replay {
+  margin-top: 10px;
+  font-family: var(--ui-font);
+  font-size: 12px;
+  background: #22262e;
+  color: #ccc;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.help-replay:hover { background: #2c313b; color: #fff; }
+@media (max-width: 760px) {
+  .help-card-wrap { right: 12px; top: 48px; }
+  .help-card { width: min(340px, calc(100vw - 24px)); }
+}
