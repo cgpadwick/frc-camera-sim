@@ -7,7 +7,7 @@ import { tryLoadFieldModel } from './field/fieldModelLoader'
 import { buildRobot } from './robot/robotBuilder'
 import { createDriveController } from './sim/driveController'
 import { DEFAULT_CONFIG } from './core/defaults'
-import { evaluatePose, idealTagIds, autoIdealRangeM, idealRangeForCap } from './core/evaluate'
+import { evaluatePose, idealTagIds, autoIdealRangeM, idealRangeForCap, cameraBlockedByBoxIndex } from './core/evaluate'
 import { createFrustumView } from './viz/frustumView'
 import { createTagHighlights } from './viz/tagHighlights'
 import { createHud } from './ui/hud'
@@ -616,6 +616,17 @@ async function boot() {
           if (sweepGeneration !== myGeneration) return
           heatmap.show(result, sweepMode)
           sweepControls.setLegendVisible(true)
+          // A terrible score with self-blinded cameras is a CONFIG problem —
+          // say so next to the score instead of letting 0/100 read as a
+          // broken tool (learned the hard way).
+          const blind = snapshot.robot.cameras.filter((_, i) => cameraBlockedByBoxIndex(snapshot.robot, i) !== null).length
+          if (blind > 0) {
+            showToast(
+              `${blind} of ${snapshot.robot.cameras.length} cameras can't see at all — they aim into a body shape (see the ⚠ warnings top-left). Fix them in Build; this sweep scored them as blind.`,
+              15000,
+              'blind-cameras',
+            )
+          }
           {
             const sc = coverageScoreVsIdeal(result)
             sweepControls.setScore(sc ? { ...sc, idealRangeM: result.idealRangeM } : null)
