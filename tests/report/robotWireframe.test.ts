@@ -78,21 +78,39 @@ describe('robotWireframeModel', () => {
     expect(m.targetZ).toBeGreaterThan(0)
   })
 
-  it('labels: axis callouts + team number on all 4 bumper sides with outward normals', () => {
+  it('labels: axis callouts only (no bumper text in labels)', () => {
     const m = robotWireframeModel(base)
     expect(m.labels.filter((l) => l.text === 'FRONT (+X)').length).toBe(1)
     expect(m.labels.filter((l) => l.text === 'LEFT (+Y)').length).toBe(1)
-    const bumpers = m.labels.filter((l) => l.text === '766')
-    expect(bumpers.length).toBe(4)
-    const normals = bumpers.map((l) => l.n)
+    expect(m.labels.length).toBe(2)
+  })
+
+  it('decals: team number baked onto all 4 bumper side quads, upright from outside', () => {
+    const m = robotWireframeModel(base)
+    expect(m.decals.length).toBe(4)
+    const normals = m.decals.map((d) => d.n)
     expect(normals).toContainEqual([1, 0, 0])
     expect(normals).toContainEqual([-1, 0, 0])
     expect(normals).toContainEqual([0, 1, 0])
     expect(normals).toContainEqual([0, -1, 0])
-    // Each sits just outside its face at bumper height.
-    for (const l of bumpers) {
-      expect(l.pos[2]).toBeCloseTo(0.075)
-      expect(l.color).toBe('#ffffff')
+    for (const d of m.decals) {
+      expect(d.text).toBe('766')
+      expect(d.color).toBe('#ffffff')
+      expect(d.quad.length).toBe(4)
+      // Bottom edge at z=0, top edge at chassis height.
+      expect(d.quad[0][2]).toBe(0)
+      expect(d.quad[1][2]).toBe(0)
+      expect(d.quad[2][2]).toBeCloseTo(0.15)
+      expect(d.quad[3][2]).toBeCloseTo(0.15)
+      // Quad sits just outside the face along its normal.
+      const off = d.quad[0][0] * d.n[0] + d.quad[0][1] * d.n[1]
+      const half = d.n[0] !== 0 ? 0.4 : 0.3
+      expect(off).toBeCloseTo(half + 0.003)
+      // Upright text: bottom-left -> bottom-right runs along z×n (right as
+      // seen from outside).
+      const r = [-d.n[1], d.n[0]]
+      const run = [d.quad[1][0] - d.quad[0][0], d.quad[1][1] - d.quad[0][1]]
+      expect(run[0] * r[0] + run[1] * r[1]).toBeGreaterThan(0)
     }
   })
 

@@ -8,10 +8,12 @@ export interface WireframeModel {
   lines: { color: string; pts: [number, number, number][] }[]
   /** Translucent convex polygons (robot frame) painted back-to-front beneath the lines. */
   faces: { color: string; alpha: number; pts: [number, number, number][] }[]
-  /** Floating text labels (robot frame). `n` = outward face normal: when
-   * present the viewer draws the label only while that face looks toward
-   * the camera (bumper numbers); without it the label always shows. */
-  labels: { text: string; color: string; pos: [number, number, number]; n?: [number, number, number] }[]
+  /** Floating text labels (robot frame) — axis callouts. */
+  labels: { text: string; color: string; pos: [number, number, number] }[]
+  /** Text decals baked onto planar quads (bumper numbers). `quad` corners in
+   * order bottom-left, bottom-right, top-right, top-left as seen from outside
+   * the face; `n` = outward normal for back-face culling. */
+  decals: { text: string; color: string; quad: [number, number, number][]; n: [number, number, number] }[]
   /** Suggested initial camera distance / target height for the viewer. */
   fitRadius: number
   targetZ: number
@@ -110,19 +112,32 @@ export function robotWireframeModel(robot: RobotConfig): WireframeModel {
   labels.push({ text: 'FRONT (+X)', color: '#ffc107', pos: [robot.lengthM / 2 + 0.3, 0, 0.02] })
   labels.push({ text: 'LEFT (+Y)', color: '#d4e157', pos: [0, robot.widthM / 2 + 0.3, 0.02] })
 
-  // Team number on each bumper side (white on red, like real FRC bumpers);
-  // shown only on camera-facing sides via the outward normal.
-  const bz = robot.chassisHeightM / 2
+  // Team number baked onto each bumper side face (white on red, like real
+  // FRC bumpers). Corners ordered so text reads upright from outside.
+  const decals: WireframeModel['decals'] = []
   const hx = robot.lengthM / 2
   const hy = robot.widthM / 2
-  const bumperSides: { pos: [number, number, number]; n: [number, number, number] }[] = [
-    { pos: [hx + 0.01, 0, bz], n: [1, 0, 0] },
-    { pos: [-hx - 0.01, 0, bz], n: [-1, 0, 0] },
-    { pos: [0, hy + 0.01, bz], n: [0, 1, 0] },
-    { pos: [0, -hy - 0.01, bz], n: [0, -1, 0] },
-  ]
-  for (const side of bumperSides) {
-    labels.push({ text: robot.teamNumber, color: '#ffffff', pos: side.pos, n: side.n })
+  const hc = robot.chassisHeightM
+  const eps = 0.003
+  for (const n of [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+  ] as [number, number, number][]) {
+    // Right-on-screen (viewed from outside along -n, z up) = z × n.
+    const r: [number, number, number] = [-n[1], n[0], 0]
+    const half = n[0] !== 0 ? hy : hx
+    const base: [number, number, number] = [n[0] * (hx + eps), n[1] * (hy + eps), 0]
+    const at = (s: number, z: number): [number, number, number] => [
+      base[0] + r[0] * s, base[1] + r[1] * s, z,
+    ]
+    decals.push({
+      text: robot.teamNumber,
+      color: '#ffffff',
+      quad: [at(-half, 0), at(half, 0), at(half, hc), at(-half, hc)],
+      n,
+    })
   }
 
   for (const b of robot.superstructure) {
@@ -192,5 +207,5 @@ export function robotWireframeModel(robot: RobotConfig): WireframeModel {
     top = Math.max(top, m.z + CONE_LEN * 0.5)
   })
 
-  return { lines, faces, labels, fitRadius, targetZ: top / 2 }
+  return { lines, faces, labels, decals, fitRadius, targetZ: top / 2 }
 }
