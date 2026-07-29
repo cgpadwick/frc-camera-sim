@@ -156,7 +156,19 @@ async function boot() {
   }
 
   const viewManager = createViewManager(ctx)
-  const viewSelect = createViewSelect(viewManager)
+  const viewSelect = createViewSelect(viewManager, {
+    onResetView() {
+      // Back to orbit first (restores its own saved state), then overwrite
+      // with the default framing for the CURRENT field's dimensions.
+      viewManager.setMode('orbit')
+      detachRobotGizmo()
+      ctx.camera.position.set(layout.field.length / 2, -layout.field.width * 0.75, 8)
+      ctx.controls.target.set(layout.field.length / 2, layout.field.width / 2, 0)
+      drive.pose.x = layout.field.length / 2
+      drive.pose.y = layout.field.width / 2
+      drive.pose.headingRad = 0
+    },
+  })
   viewSelect.refresh(config.robot.cameras.map((c) => c.name))
   // HUD + view selector share a left-side column so the selector always
   // sits below the per-camera list no matter how many cameras exist.

@@ -7,14 +7,23 @@ export interface ViewSelect {
   refresh(cameraNames: string[]): void
 }
 
+export interface ViewSelectOptions {
+  /** Reset the orbit camera framing and the robot's pose to defaults. */
+  onResetView(): void
+}
+
 /** Small view-mode dropdown (top center). Cycles are also bound to the V key in main.ts. */
-export function createViewSelect(manager: ViewManager): ViewSelect {
+export function createViewSelect(manager: ViewManager, opts: ViewSelectOptions): ViewSelect {
   const wrap = document.createElement('div')
   wrap.className = 'view-select'
   const label = document.createElement('span')
   label.textContent = 'View (V)'
   const select = document.createElement('select')
-  wrap.append(label, select)
+  const resetBtn = document.createElement('button')
+  resetBtn.textContent = '⟲ Reset'
+  resetBtn.title = 'Re-center the view and put the robot back at mid-field'
+  resetBtn.addEventListener('click', () => opts.onResetView())
+  wrap.append(label, select, resetBtn)
 
   let names: string[] = []
   function rebuildOptions(): void {
