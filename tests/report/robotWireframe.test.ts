@@ -78,6 +78,24 @@ describe('robotWireframeModel', () => {
     expect(m.targetZ).toBeGreaterThan(0)
   })
 
+  it('labels: axis callouts + team number on all 4 bumper sides with outward normals', () => {
+    const m = robotWireframeModel(base)
+    expect(m.labels.filter((l) => l.text === 'FRONT (+X)').length).toBe(1)
+    expect(m.labels.filter((l) => l.text === 'LEFT (+Y)').length).toBe(1)
+    const bumpers = m.labels.filter((l) => l.text === '766')
+    expect(bumpers.length).toBe(4)
+    const normals = bumpers.map((l) => l.n)
+    expect(normals).toContainEqual([1, 0, 0])
+    expect(normals).toContainEqual([-1, 0, 0])
+    expect(normals).toContainEqual([0, 1, 0])
+    expect(normals).toContainEqual([0, -1, 0])
+    // Each sits just outside its face at bumper height.
+    for (const l of bumpers) {
+      expect(l.pos[2]).toBeCloseTo(0.075)
+      expect(l.color).toBe('#ffffff')
+    }
+  })
+
   it('model is JSON-serializable round-trip (feeds the inline viewer)', () => {
     const m = robotWireframeModel({ ...base, cameras: [cam(0), cam(90, 0)] })
     expect(JSON.parse(JSON.stringify(m))).toEqual(m)

@@ -8,8 +8,10 @@ export interface WireframeModel {
   lines: { color: string; pts: [number, number, number][] }[]
   /** Translucent convex polygons (robot frame) painted back-to-front beneath the lines. */
   faces: { color: string; alpha: number; pts: [number, number, number][] }[]
-  /** Floating text labels (robot frame) — axis callouts. */
-  labels: { text: string; color: string; pos: [number, number, number] }[]
+  /** Floating text labels (robot frame). `n` = outward face normal: when
+   * present the viewer draws the label only while that face looks toward
+   * the camera (bumper numbers); without it the label always shows. */
+  labels: { text: string; color: string; pos: [number, number, number]; n?: [number, number, number] }[]
   /** Suggested initial camera distance / target height for the viewer. */
   fitRadius: number
   targetZ: number
@@ -107,6 +109,21 @@ export function robotWireframeModel(robot: RobotConfig): WireframeModel {
   })
   labels.push({ text: 'FRONT (+X)', color: '#ffc107', pos: [robot.lengthM / 2 + 0.3, 0, 0.02] })
   labels.push({ text: 'LEFT (+Y)', color: '#d4e157', pos: [0, robot.widthM / 2 + 0.3, 0.02] })
+
+  // Team number on each bumper side (white on red, like real FRC bumpers);
+  // shown only on camera-facing sides via the outward normal.
+  const bz = robot.chassisHeightM / 2
+  const hx = robot.lengthM / 2
+  const hy = robot.widthM / 2
+  const bumperSides: { pos: [number, number, number]; n: [number, number, number] }[] = [
+    { pos: [hx + 0.01, 0, bz], n: [1, 0, 0] },
+    { pos: [-hx - 0.01, 0, bz], n: [-1, 0, 0] },
+    { pos: [0, hy + 0.01, bz], n: [0, 1, 0] },
+    { pos: [0, -hy - 0.01, bz], n: [0, -1, 0] },
+  ]
+  for (const side of bumperSides) {
+    labels.push({ text: robot.teamNumber, color: '#ffffff', pos: side.pos, n: side.n })
+  }
 
   for (const b of robot.superstructure) {
     for (const pts of boxEdges(b.center.x, b.center.y, b.center.z, b.size.x, b.size.y, b.size.z, b.yawDeg)) {
