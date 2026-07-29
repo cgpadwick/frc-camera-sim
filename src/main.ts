@@ -65,7 +65,7 @@ async function boot() {
 
   const loaded = loadConfig()
   if (loaded && 'error' in loaded) {
-    showToast('Saved config was invalid — using defaults')
+    showToast('Saved config was invalid — using defaults', undefined, undefined, undefined, 'error')
   }
   let config: SimConfig = loaded && 'config' in loaded ? loaded.config : structuredClone(DEFAULT_CONFIG)
 
@@ -80,7 +80,7 @@ async function boot() {
     bootField = await loadField(bootYear)
   } catch (e) {
     if (bootYear === DEFAULT_CONFIG.fieldYear) throw e
-    showToast(`Failed to load field "${bootYear}": ${e instanceof Error ? e.message : String(e)} — falling back to default field.`)
+    showToast(`Failed to load field "${bootYear}": ${e instanceof Error ? e.message : String(e)} — falling back to default field.`, undefined, undefined, undefined, 'error')
     bootYear = DEFAULT_CONFIG.fieldYear
     bootField = await loadField(bootYear)
   }
@@ -535,7 +535,7 @@ async function boot() {
     try {
       loaded = await loadField(year)
     } catch (e) {
-      showToast(`Failed to load field "${year}": ${e instanceof Error ? e.message : String(e)}`)
+      showToast(`Failed to load field "${year}": ${e instanceof Error ? e.message : String(e)}`, undefined, undefined, undefined, 'error')
       return
     }
     // Only mutate/persist fieldYear and swap live state once the load has
@@ -649,7 +649,7 @@ async function boot() {
           showInspectMark(sweepControls.el)
         })
         .catch((e: unknown) => {
-          showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`)
+          showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`, undefined, undefined, undefined, 'error')
         })
         .finally(() => {
           sweepRunning = false

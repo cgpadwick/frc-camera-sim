@@ -40,12 +40,13 @@ export function showToast(
   durationMs = DEFAULT_DURATION_MS,
   key?: string,
   action?: { label: string; onClick(): void },
+  kind: 'info' | 'error' = 'info',
 ): void {
   if (key) takeKeyed(keyedToasts, key)?.remove()
 
   const el = document.createElement('div')
-  el.className = 'toast'
-  el.setAttribute('role', 'alert')
+  el.className = kind === 'error' ? 'toast toast-error' : 'toast'
+  el.setAttribute('role', kind === 'error' ? 'alert' : 'status')
   const text = document.createElement('span')
   text.textContent = message
   el.appendChild(text)

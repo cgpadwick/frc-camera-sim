@@ -520,7 +520,7 @@ export function createConfigPanel(opts: ConfigPanelOptions & ConfigPanelOptionsE
           opts.onFieldChange(working.fieldYear)
         })
         .catch((e: unknown) => {
-          showToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`)
+          showToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`, undefined, undefined, undefined, 'error')
         })
     })
     root.appendChild(button('Import', () => fileInput.click()))
