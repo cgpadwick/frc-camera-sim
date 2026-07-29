@@ -2,6 +2,7 @@ import type { SimConfig } from '../core/types'
 import type { Band, ReportStats } from './report'
 import { BAND_COLORS } from '../ui/hud'
 import { CAMERA_COLORS } from '../viz/frustumView'
+import { COUNT_STOPS } from '../viz/heatmapView'
 import { showToast } from '../ui/toast'
 
 const BANDS: Band[] = ['dead', 'poor', 'ok', 'strong']
@@ -42,6 +43,25 @@ function delta(n: number): string {
 export interface RenderReportOptions {
   /** True if the field's occluder box list was empty at sweep time — no field-element occlusion was modeled. */
   fieldOccludersEmpty?: boolean
+  /** Data-URL PNGs embedded in the report (self-contained blob, no external refs). */
+  images?: {
+    /** Realistic (worst-case heading) coverage map. */
+    realisticMap?: string
+    /** Theoretical-best coverage map. */
+    idealMap?: string
+    /** Robot render with camera gizmos and aim cones. */
+    robot?: string
+  }
+}
+
+/** Shared count-color legend strip under the embedded maps. */
+function legendStrip(): string {
+  const labels = ['0 (blind)', '1 tag', '2 tags', '3 tags', '4+ tags']
+  const stops = COUNT_STOPS.map(
+    (hex, i) =>
+      `<span class="legend-item"><span class="legend-swatch" style="background:${hex}"></span>${labels[i]}</span>`,
+  ).join('')
+  return `<div class="legend">${stops}</div>`
 }
 
 /**
@@ -59,7 +79,6 @@ export function renderReport(
   const title = `Coverage Report — Team ${escapeHtml(config.robot.teamNumber)} — ${escapeHtml(config.fieldYear)}`
 
   const coverageTable = renderCoverageTable(stats, compare)
-  const deadZoneSection = renderDeadZones(stats)
   const cameraSection = renderCameraShare(stats)
   const tagSection = renderTagLists(stats)
   const occluderNote = opts?.fieldOccludersEmpty
@@ -90,6 +109,15 @@ export function renderReport(
   ul.deadzone-list { columns: 3; padding-left: 1.4rem; font-variant-numeric: tabular-nums; }
   pre { background: #f5f5f5; border: 1px solid #ddd; padding: 0.75rem; overflow-x: auto; font-size: 0.8rem; }
   .overflow-note { color: #555; font-style: italic; }
+  .maps { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .maps figure { margin: 0; flex: 1 1 320px; }
+  .maps figcaption { font-size: 0.85rem; color: #555; margin-top: 0.25rem; }
+  .report-img { width: 100%; height: auto; border: 1px solid #ccc; image-rendering: pixelated; }
+  .robot-img { max-width: 480px; image-rendering: auto; }
+  .legend { display: flex; gap: 1rem; margin: 0.5rem 0 0.25rem; font-size: 0.85rem; }
+  .legend-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .legend-swatch { width: 0.9rem; height: 0.9rem; border-radius: 2px; border: 1px solid #999; display: inline-block; }
+  .note-sub { color: #555; font-size: 0.85rem; }
   @media print {
     body { margin: 0.5rem; }
     .note { break-inside: avoid; }
@@ -101,10 +129,25 @@ export function renderReport(
 <p class="subtitle">Generated ${generatedAt}</p>
 ${occluderNote}
 ${stats.scoreVsIdeal ? `<p class="score-line"><b>Coverage score vs ideal: ${stats.scoreVsIdeal.worstPct.toFixed(0)} / 100 (worst-case heading)</b> — field-wide tags seen as a percentage of what an omnidirectional ideal setup would see (ideal = 100).</p>` : ''}
+${
+  opts?.images?.robot
+    ? `<h2>Robot &amp; camera placement</h2>
+<img class="report-img robot-img" src="${opts.images.robot}" alt="Robot with camera positions and aim cones">`
+    : ''
+}
+${
+  opts?.images?.realisticMap || opts?.images?.idealMap
+    ? `<h2>Coverage maps</h2>
+<div class="maps">
+${opts?.images?.realisticMap ? `<figure><img class="report-img" src="${opts.images.realisticMap}" alt="Realistic coverage map (worst-case heading)"><figcaption>Realistic — tags visible at the worst-case robot heading</figcaption></figure>` : ''}
+${opts?.images?.idealMap ? `<figure><img class="report-img" src="${opts.images.idealMap}" alt="Theoretical best coverage map"><figcaption>Theoretical best — omnidirectional ideal at the same range</figcaption></figure>` : ''}
+</div>
+${legendStrip()}
+<p class="note-sub">Field origin bottom-left; long axis horizontal.</p>`
+    : ''
+}
 <h2>Coverage by band</h2>
 ${coverageTable}
-<h2>Dead zones</h2>
-${deadZoneSection}
 <h2>Per-camera contribution</h2>
 ${cameraSection}
 <h2>Tag visibility</h2>
@@ -139,12 +182,6 @@ function renderCoverageTable(stats: ReportStats, compare?: { label: string; stat
   return `<table>${header}\n${rows}</table>`
 }
 
-function renderDeadZones(stats: ReportStats): string {
-  if (stats.deadZones.length === 0) return '<p>No dead zones — every sampled cell had at least one visible tag at every heading.</p>'
-  const items = stats.deadZones.map((z) => `<li>(${z.xM.toFixed(2)} m, ${z.yM.toFixed(2)} m)</li>`).join('')
-  const overflow = stats.deadZoneOverflow > 0 ? `<p class="overflow-note">+${stats.deadZoneOverflow} more not shown</p>` : ''
-  return `<ul class="deadzone-list">${items}</ul>${overflow}`
-}
 
 function renderCameraShare(stats: ReportStats): string {
   if (stats.cameraShare.length === 0) return '<p>No cameras configured.</p>'

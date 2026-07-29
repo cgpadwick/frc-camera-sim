@@ -36,6 +36,7 @@ import type { OccluderBox, RobotConfig, SimConfig, TagLayout } from './core/type
 import { computeReportStats } from './report/report'
 import type { ReportStats } from './report/report'
 import { renderReport, openReport } from './report/reportTemplate'
+import { heatmapDataUrl } from './report/mapImage'
 
 // Stable key for the "field model unavailable" banner, so switching between
 // model-less field years (or repeatedly reloading the same one) replaces the
@@ -673,7 +674,16 @@ async function boot() {
     onReport() {
       if (!lastSweep) return
       const stats = computeReportStats(lastSweep.result, lastSweep.config.robot, lastSweep.allTagIds)
-      const html = renderReport(stats, lastSweep.config, baseline ?? undefined, { fieldOccludersEmpty: lastSweep.fieldOccludersEmpty })
+      const html = renderReport(stats, lastSweep.config, baseline ?? undefined, {
+        fieldOccludersEmpty: lastSweep.fieldOccludersEmpty,
+        images: {
+          realisticMap: heatmapDataUrl(lastSweep.result, 'min'),
+          idealMap: heatmapDataUrl(lastSweep.result, 'ideal'),
+          // The editor scene holds the robot with gizmos/cones regardless of
+          // the active tab — snapshot it offscreen.
+          robot: editor.snapshot(640, 480),
+        },
+      })
       openReport(html)
     },
     onSetBaseline() {

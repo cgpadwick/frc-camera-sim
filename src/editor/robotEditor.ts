@@ -54,6 +54,8 @@ export interface RobotEditor {
   rebuildRobot(): void
   /** Frame the robot: centered, comfortable distance, ~35° elevation (QA round 7B). */
   frameRobot(): void
+  /** Offscreen PNG of the robot with camera gizmos + aim cones (for the report). */
+  snapshot(width: number, height: number): string
 }
 
 export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): RobotEditor {
@@ -421,6 +423,42 @@ export function createRobotEditor(ctx: SceneCtx, opts: RobotEditorOptions): Robo
     },
     selectBox,
     selectCamera: (index) => select(index),
+    snapshot(width, height) {
+      // Fresh state, gizmos hidden: the report wants the robot, not the editor chrome.
+      const robot = opts.getRobot()
+      syncHandles(robot)
+      frustums.update(EDITOR_POSE, robot, opts.getTagSize(), null, EDITOR_CONE_PREVIEW_M, null)
+      const helper = tc.getHelper()
+      const helperWasVisible = helper.visible
+      helper.visible = false
+      if (selectionBox) selectionBox.visible = false
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+      renderer.setSize(width, height)
+      const cam = new THREE.PerspectiveCamera(45, width / height, 0.05, 50)
+      cam.up.set(0, 0, 1)
+      let r = Math.hypot(robot.lengthM / 2, robot.widthM / 2)
+      let top = robot.chassisHeightM
+      for (const b of robot.superstructure) {
+        r = Math.max(r, Math.hypot(Math.abs(b.center.x) + b.size.x / 2, Math.abs(b.center.y) + b.size.y / 2))
+        top = Math.max(top, b.center.z + b.size.z / 2)
+      }
+      const dist = Math.max(1.6, r * 3.4)
+      const elev = (32 * Math.PI) / 180
+      const azim = (45 * Math.PI) / 180
+      cam.position.set(
+        Math.cos(azim) * Math.cos(elev) * dist,
+        -Math.sin(azim) * Math.cos(elev) * dist,
+        top / 2 + Math.sin(elev) * dist,
+      )
+      cam.lookAt(0, 0, top / 2)
+      renderer.render(scene, cam)
+      const url = renderer.domElement.toDataURL('image/png')
+      renderer.dispose()
+      helper.visible = helperWasVisible
+      if (selectionBox) selectionBox.visible = true
+      return url
+    },
     frameRobot() {
       const robot = opts.getRobot()
       // Bounding radius from chassis + tallest/widest superstructure extents.

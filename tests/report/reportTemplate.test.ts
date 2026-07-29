@@ -55,9 +55,22 @@ describe('renderReport', () => {
     expect(html).toContain('25.0%') // bandPctMin values, formatted to 1 decimal
   })
 
-  it('includes a dead-zone coordinate list', () => {
-    expect(html).toContain('0.50')
-    expect(html).toContain('1.50')
+  it('has NO dead-zone table (removed by user request) and embeds images when provided', () => {
+    const html = renderReport(makeStats(), DEFAULT_CONFIG, undefined, {
+      images: { realisticMap: 'data:image/png;base64,AAA', idealMap: 'data:image/png;base64,BBB', robot: 'data:image/png;base64,CCC' },
+    })
+    expect(html).not.toContain('Dead zones')
+    expect(html).toContain('Coverage maps')
+    expect(html).toContain('data:image/png;base64,AAA')
+    expect(html).toContain('data:image/png;base64,BBB')
+    expect(html).toContain('Robot &amp; camera placement')
+    expect(html).toContain('data:image/png;base64,CCC')
+    expect(html).toContain('0 (blind)') // legend strip present with the maps
+  })
+  it('omits image sections when no images are passed', () => {
+    const html = renderReport(makeStats(), DEFAULT_CONFIG)
+    expect(html).not.toContain('Coverage maps')
+    expect(html).not.toContain('Robot &amp; camera placement')
   })
 
   it('includes per-camera contribution bars', () => {
@@ -135,9 +148,4 @@ describe('renderReport: empty dead zones and empty tag lists render without cras
     assertBalancedTags(html, 'table')
   })
 
-  it('shows the overflow count when deadZoneOverflow > 0', () => {
-    const stats = makeStats({ deadZoneOverflow: 7 })
-    const html = renderReport(stats, DEFAULT_CONFIG)
-    expect(html).toMatch(/\+7 more/)
-  })
 })
