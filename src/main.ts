@@ -319,35 +319,13 @@ async function boot() {
     },
   })
 
-  // Robot-editor guidance: ONE contextual hint line for the current state,
-  // with the full legend collapsed behind a "?" toggle (QA round 5, P1.11).
+  // Robot-editor guidance: ONE contextual hint line for the current state.
+  // The full controls list lives in the ? Guide card — no second toggle here.
   const editorHints = document.createElement('div')
   editorHints.className = 'editor-hints'
   const hintLine = document.createElement('div')
   hintLine.className = 'editor-hint-line'
-  const helpToggle = document.createElement('button')
-  helpToggle.className = 'editor-help-toggle'
-  helpToggle.textContent = '?'
-  helpToggle.title = 'Show all editor controls'
-  const legend = document.createElement('div')
-  legend.style.display = 'none'
-  legend.innerHTML = [
-    '🖱 <b>Drag</b> a camera to slide it across the robot (it aims out of the face it sits on)',
-    '➕ <b>Add camera</b>, then click a spot on the robot',
-    '▦ <b>Click a body shape</b> to move/rotate/scale it · <b>Delete</b> removes it',
-    '🌀 Left-drag orbit · right-drag pan · scroll zoom · <b>F</b> toggles view cones',
-  ]
-    .map((l) => `<div>${l}</div>`)
-    .join('')
-  helpToggle.addEventListener('click', () => {
-    const open = legend.style.display === 'none'
-    legend.style.display = open ? '' : 'none'
-    helpToggle.title = open ? 'Hide controls' : 'Show all editor controls'
-  })
-  const hintRow = document.createElement('div')
-  hintRow.className = 'editor-hint-row'
-  hintRow.append(hintLine, helpToggle)
-  editorHints.append(hintRow, legend)
+  editorHints.appendChild(hintLine)
   editorHints.style.display = 'none'
   app.appendChild(editorHints)
 

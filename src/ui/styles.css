@@ -590,28 +590,9 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 
 
 
-.editor-hint-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .editor-hint-line {
   font-size: 13px;
   color: #eee;
-}
-
-.editor-help-toggle {
-  font-family: var(--ui-font);
-  font-size: 13px;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid #6a7385;
-  background: #22262e;
-  color: #ccc;
-  cursor: pointer;
-  flex-shrink: 0;
 }
 
 button:disabled {
