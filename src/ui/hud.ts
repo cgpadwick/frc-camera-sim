@@ -84,7 +84,7 @@ export function createHud(container: HTMLElement): Hud {
             : `${cam.name}: ${count} tags`
         cameraLines[i].title =
           blockedBy !== null
-            ? `This camera's line of sight starts inside body shape ${blockedBy} — it is buried in it or pointed into it. Move or re-aim it in the Build view.`
+            ? `This camera's line of sight starts inside body shape ${blockedBy} — it is buried in it or pointed into it. Move or re-aim it in the ① Robot Setup view.`
             : ''
       })
     },

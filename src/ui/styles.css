@@ -586,60 +586,9 @@ html, body, #app { margin: 0; height: 100%; overflow: hidden; }
   border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-.coach-mark {
-  position: fixed;
-  z-index: 50;
-  background: #4fc3f7;
-  color: #10141a;
-  font-family: system-ui, sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 10px 14px;
-  border-radius: 8px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
-}
 
-.coach-mark button {
-  font-family: system-ui, sans-serif;
-  font-size: 13px;
-  border: 1px solid rgba(0, 0, 0, 0.4);
-  background: rgba(255, 255, 255, 0.25);
-  color: #10141a;
-  border-radius: 5px;
-  padding: 3px 10px;
-  cursor: pointer;
-}
 
-.purpose-chip {
-  position: absolute;
-  top: 42%;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 15;
-  background: rgba(20, 22, 28, 0.92);
-  border: 1px solid #4fc3f7;
-  color: #eee;
-  font-family: system-ui, sans-serif;
-  font-size: 15px;
-  padding: 14px 18px;
-  border-radius: 10px;
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  max-width: 520px;
-  text-align: center;
-}
 
-.purpose-chip button {
-  background: transparent;
-  border: none;
-  color: #9aa4b0;
-  font-size: 14px;
-  cursor: pointer;
-}
 
 .editor-hint-row {
   display: flex;
@@ -789,80 +738,16 @@ button:disabled {
 
 /* --- Round 7A: setup checklist card --- */
 
-.setup-checklist {
-  position: absolute;
-  top: 58px;
-  left: 12px;
-  z-index: 11;
-  width: 300px;
-  background: rgba(20, 22, 28, 0.94);
-  border: 1px solid #4fc3f7;
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-family: var(--ui-font);
-  color: #eee;
-}
 
-.setup-checklist-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
 
-.setup-checklist-title button {
-  background: transparent;
-  border: none;
-  color: #9aa4b0;
-  cursor: pointer;
-  min-height: 24px;
-}
 
-.setup-checklist-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-.setup-checklist-list li {
-  display: flex;
-  gap: 8px;
-  font-size: 13px;
-  color: #9aa4b0;
-}
 
-.setup-checklist-list li.done {
-  color: #6f7a86;
-}
 
-.setup-checklist-list li.done .setup-mark {
-  color: #4caf50;
-}
 
-.setup-checklist-list li.active {
-  color: #eee;
-}
 
-.setup-checklist-list li.active .setup-mark {
-  color: #4fc3f7;
-}
 
-.setup-label {
-  display: block;
-  font-weight: 600;
-}
 
-.setup-hint {
-  display: block;
-  font-size: 12px;
-  color: #b6c0cc;
-  margin-top: 2px;
-}
 
 .fresh-opts {
   display: inline-flex;
@@ -929,4 +814,61 @@ button:disabled {
 @media (max-width: 760px) {
   .help-card-wrap { right: 12px; top: 48px; }
   .help-card { width: min(340px, calc(100vw - 24px)); }
+}
+
+/* --- First-visit "Start here" card (re-openable from ? Guide) --- */
+.start-here {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100vw - 24px));
+  box-sizing: border-box;
+  z-index: 14;
+  background: rgba(20, 22, 28, 0.97);
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-family: var(--ui-font);
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.start-here-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.start-here-title button {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 14px;
+  cursor: pointer;
+}
+.start-here-title button:hover { color: #fff; }
+.start-here-blurb { margin-bottom: 8px; }
+.start-here-steps { margin: 0 0 10px; padding-left: 1.4em; }
+.start-here-steps li { margin: 4px 0; }
+.start-here-go {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  font-weight: bold;
+  background: #2b6cb0;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.start-here-go:hover { background: #3182ce; }
+
+/* Analyze with zero cameras: greyed but clickable so the click can explain. */
+.sweep-controls-bar button.btn-gated {
+  opacity: 0.45;
+  filter: grayscale(0.6);
 }

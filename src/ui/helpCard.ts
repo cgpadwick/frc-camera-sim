@@ -1,16 +1,12 @@
 /**
  * On-demand guide: a "? Guide" button that expands a card with quick-start
- * steps and controls, plus a "replay first-run tips" action. The first-run
- * coach marks and checklist are one-shot — this card is how returning users
- * pull the instructions back up whenever they want.
+ * steps and controls, plus a link back to the Start-here intro. This card is
+ * how returning users pull the instructions back up whenever they want.
  *
  * Content is context-specific: the Build tab and the Field tab have
  * different controls, so each mode gets its own sections (a field-only
  * shortcut like V must never be advertised in Build).
  */
-
-import { resetFirstRunFlags } from './coachMarks'
-import { SETUP_DONE_KEY } from './setupChecklist'
 
 export type HelpMode = 'field' | 'robot'
 
@@ -23,8 +19,8 @@ export interface HelpCard {
 }
 
 export interface HelpCardOptions {
-  /** Called after the first-run flags are cleared (main reloads the page). */
-  onReplayTips(): void
+  /** Re-open the Start-here intro card. */
+  onShowStartHere(): void
 }
 
 interface Section {
@@ -45,7 +41,7 @@ const CONTENT: Record<HelpMode, Section[]> = {
       ],
     },
     {
-      title: 'Controls (Build tab)',
+      title: 'Controls (Robot Setup tab)',
       rows: [
         '<b>F</b> — show / hide camera view cones',
         '<b>Esc</b> — deselect / close popups',
@@ -116,20 +112,15 @@ export function createHelpCard(opts: HelpCardOptions): HelpCard {
   }
   render('field')
 
-  const replay = document.createElement('button')
-  replay.className = 'help-replay'
-  replay.textContent = '↺ Replay first-run tips'
-  replay.title = 'Bring back the setup checklist and hint bubbles (your robot and settings are kept)'
-  replay.addEventListener('click', () => {
-    resetFirstRunFlags()
-    try {
-      localStorage.removeItem(SETUP_DONE_KEY)
-    } catch {
-      /* ignore */
-    }
-    opts.onReplayTips()
+  const intro = document.createElement('button')
+  intro.className = 'help-replay'
+  intro.textContent = '📍 Show the Start-here intro'
+  intro.title = 'Re-open the first-visit intro card'
+  intro.addEventListener('click', () => {
+    setOpen(false)
+    opts.onShowStartHere()
   })
-  card.appendChild(replay)
+  card.appendChild(intro)
 
   function setOpen(open: boolean): void {
     card.style.display = open ? '' : 'none'

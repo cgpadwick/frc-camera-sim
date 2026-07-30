@@ -18,9 +18,8 @@ import { createHeatmapView } from './viz/heatmapView'
 import { createViewManager } from './viz/viewModes'
 import { createViewSelect } from './ui/viewSelect'
 import { createTabBar } from './ui/tabs'
-import { showFirstRunMarks, showInspectMark, firstSweepPending } from './ui/coachMarks'
 import { createHelpCard } from './ui/helpCard'
-import { createSetupChecklist, diffRobotEdits } from './ui/setupChecklist'
+import { createStartHere } from './ui/startHere'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { createRobotEditor } from './editor/robotEditor'
 import { disposeObject3D } from './viz/dispose'
@@ -250,9 +249,7 @@ async function boot() {
     if (e.key === 'Escape') {
       // A2: Esc backs out of transient UI regardless of focus target.
       sweepControls.clearDetail()
-      purposeChip.remove()
       helpCard.close()
-      for (const mark of document.querySelectorAll('.coach-mark')) mark.remove()
       detachRobotGizmo()
       return
     }
@@ -278,7 +275,6 @@ async function boot() {
     viewSelect.refresh(config.robot.cameras.map((c) => c.name))
     markSweepStaleIfNeeded()
     refreshWorkflowState()
-    refreshChecklist()
   }
 
   const editor = createRobotEditor(ctx, {
@@ -288,7 +284,6 @@ async function boot() {
       const cam = config.robot.cameras[u.cameraIndex]
       if (!cam) return
       cam.mount = u.mount
-      if (u.commit) cameraAimed = true
       applyEditorRobotChange(u.commit)
     },
     onAddCamera(mount) {
@@ -311,13 +306,11 @@ async function boot() {
     onBoxUpdate(index, box) {
       if (!config.robot.superstructure[index]) return
       config.robot.superstructure[index] = box
-      bodyShapeTouched = true
       applyEditorRobotChange(true)
       editor.rebuildRobot() // normalizes gizmo scale back into box size
     },
     onBoxRemove(index) {
       config.robot.superstructure.splice(index, 1)
-      bodyShapeTouched = true
       applyEditorRobotChange(true)
       editor.rebuildRobot()
     },
@@ -360,47 +353,20 @@ async function boot() {
 
   // On-demand guide card — always available, both modes.
   const helpCard = createHelpCard({
-    onReplayTips() {
-      location.reload()
+    onShowStartHere() {
+      startHere.show()
     },
   })
   app.appendChild(helpCard.el)
 
-  // Purpose chip: tells a cold-load user what the tool is FOR and what to
-  // press first; gone forever once they've ever completed a sweep.
-  const purposeChip = document.createElement('div')
-  purposeChip.className = 'purpose-chip'
-  if (firstSweepPending()) {
-    const text = document.createElement('span')
-    text.innerHTML = '<b>Find the best camera placement for your robot</b> — set it up in the Robot tab, then press Analyze coverage.'
-    const close = document.createElement('button')
-    close.textContent = '✕'
-    close.title = 'Dismiss'
-    close.addEventListener('click', () => purposeChip.remove())
-    purposeChip.append(text, close)
-    app.appendChild(purposeChip)
-  }
-
-  // --- Round 7A: guided first-run setup checklist (Build view only) ---
-  const setupChecklist = createSetupChecklist()
-  app.appendChild(setupChecklist.el)
-  setupChecklist.el.style.display = 'none' // shown only in Build (and only until finished)
-  let bodyShapeTouched = false
-  let cameraAimed = false
-  function refreshChecklist(): void {
-    if (setupChecklist.finished()) return
-    setupChecklist.update({
-      bodyShapeTouched,
-      cameraCount: config.robot.cameras.length,
-      cameraAimed,
-      hasSweep: lastSweep !== null,
-    })
-  }
-  setupChecklist.onReadyToAnalyze(() => {
-    // Rows 1–3 done: point at the next move without gating anything.
-    tabs.stepButton(2).classList.add('pulse')
-    setTimeout(() => tabs.stepButton(2).classList.remove('pulse'), 2100)
+  // First-visit "Start here" card; re-openable from the Guide any time.
+  const startHere = createStartHere({
+    onGoToRobotSetup() {
+      tabs.stepButton(1).click()
+    },
   })
+  app.appendChild(startHere.el)
+  if (!startHere.seen()) startHere.show()
 
   const tabs = createTabBar({
     onChange(mode) {
@@ -424,15 +390,6 @@ async function boot() {
         el.style.display = mode === 'robot' ? 'none' : ''
       }
       editorHints.style.display = mode === 'robot' ? '' : 'none'
-      setupChecklist.el.style.display = mode === 'robot' && !setupChecklist.finished() ? '' : 'none'
-      if (mode === 'robot') refreshChecklist()
-      // The inspect coach mark references the field — meaningless in Build (7b fix 4).
-      for (const m of document.querySelectorAll<HTMLElement>('.coach-mark-inspect')) {
-        m.style.display = mode === 'robot' ? 'none' : ''
-      }
-      // The chip's copy points AT the Robot tab — showing it while already
-      // there is nonsense (QA round 5b nit 2).
-      purposeChip.style.display = mode === 'robot' ? 'none' : ''
       helpCard.setMode(mode)
       panel.setMode(mode)
     },
@@ -446,7 +403,6 @@ async function boot() {
       editor.setFrustumFillOpacity(opacity)
     },
     onAddBox() {
-      bodyShapeTouched = true
       config.robot.superstructure.push({
         center: { x: 0, y: 0, z: config.robot.chassisHeightM + 0.15 },
         size: { x: 0.3, y: 0.3, z: 0.3 },
@@ -604,9 +560,12 @@ async function boot() {
     initialTrustedRangeM: config.trustedRangeM,
     onRun() {
       if (sweepRunning) return
+      if (config.robot.cameras.length === 0) {
+        showToast('No cameras to analyze yet — add them in ① Robot Setup first.', 8000, 'no-cameras', undefined, 'error')
+        return
+      }
       clearProposal() // a fresh sweep supersedes any open A/B session
       sweepControls.setOptimizeOutcome(null)
-      purposeChip.remove()
       sweepRunning = true
       const myGeneration = ++sweepGeneration
       // Snapshot the config BEFORE dispatch, not at resolve time: the worker
@@ -635,7 +594,7 @@ async function boot() {
           const blind = snapshot.robot.cameras.filter((_, i) => cameraBlockedByBoxIndex(snapshot.robot, i) !== null).length
           if (blind > 0) {
             showToast(
-              `${blind} of ${snapshot.robot.cameras.length} cameras can't see at all — they aim into a body shape (see the ⚠ warnings top-left). Fix them in Build; this sweep scored them as blind.`,
+              `${blind} of ${snapshot.robot.cameras.length} cameras can't see at all — they aim into a body shape (see the ⚠ warnings top-left). Fix them in ① Robot Setup; this sweep scored them as blind.`,
               15000,
               'blind-cameras',
             )
@@ -657,8 +616,6 @@ async function boot() {
           sweepControls.setPrimaryAction('optimize')
           ctx.renderer.domElement.style.cursor = 'crosshair'
           refreshWorkflowState()
-          refreshChecklist()
-          showInspectMark(sweepControls.el)
         })
         .catch((e: unknown) => {
           showToast(`Coverage sweep failed: ${e instanceof Error ? e.message : String(e)}`, undefined, undefined, undefined, 'error')
@@ -828,13 +785,9 @@ async function boot() {
       hasSweep: lastSweep !== null,
       optimizeActive: optimizeHandle !== null || proposal !== null,
     })
+    sweepControls.setCamerasPresent(config.robot.cameras.length > 0)
   }
   refreshWorkflowState()
-
-  showFirstRunMarks({
-    robotTab: tabs.stepButton(1),
-    analyzeBtn: sweepControls.el.querySelector('button') as HTMLElement,
-  })
 
   // Cell inspection: DOUBLE-click a heatmap cell to inspect it. Single
   // clicks are far too overloaded on this canvas (deselect robot, orbit
@@ -892,17 +845,13 @@ async function boot() {
       // updates on select before the async load resolves, including on a
       // load that ultimately fails), so it is intentionally *not* trusted
       // here — only the robot config is taken from panel edits.
-      const edits = diffRobotEdits(config.robot, newConfig.robot)
       config = { ...newConfig, fieldYear: config.fieldYear }
-      if (edits.camerasChanged && config.robot.cameras.length > 0) cameraAimed = true
-      if (edits.boxesChanged) bodyShapeTouched = true
       saveConfig(config)
       rebuildRobot()
       editor.rebuildRobot()
       viewSelect.refresh(config.robot.cameras.map((c) => c.name))
       markSweepStaleIfNeeded()
       refreshWorkflowState()
-      refreshChecklist()
     },
     onFieldChange(year) {
       // config.fieldYear is only mutated + persisted inside rebuildField,

@@ -57,7 +57,7 @@ export function createTabBar(opts: {
 
   const steps: Step[] = (
     [
-      [1, 'Build', 'Build your robot and place cameras'],
+      [1, 'Robot Setup', 'Set up your robot and place cameras'],
       [2, 'Analyze', 'Drive the field and analyze coverage'],
       [3, 'Optimize', 'Let the solver search for better camera mounts'],
     ] as const

@@ -111,6 +111,8 @@ export interface SweepControlsHandle {
   el: HTMLElement
   /** Toggles the Run button's disabled state and shows/hides the progress bar. */
   setRunning(running: boolean): void
+  /** False = no cameras on the robot: Analyze greys out (still clickable so main can explain). */
+  setCamerasPresent(present: boolean): void
   /** Updates the progress bar (0..1). */
   setProgress(frac: number): void
   /** Renders the cell-detail box from a pure CellDetail payload. */
@@ -409,6 +411,12 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
 
   return {
     el,
+    setCamerasPresent(present) {
+      runBtn.classList.toggle('btn-gated', !present)
+      runBtn.title = present
+        ? "Simulates your cameras from every field position — a 'coverage sweep'"
+        : 'Add cameras in ① Robot Setup first'
+    },
     setRunning(running) {
       runBtn.disabled = running
       progress.style.display = running ? '' : 'none'
