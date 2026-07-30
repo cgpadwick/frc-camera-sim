@@ -31,16 +31,42 @@ describe('createHelpCard', () => {
     expect(help.el.querySelector<HTMLElement>('.help-card')!.style.display).toBe('none')
   })
 
-  it('contains the workflow steps and key controls', () => {
+  it('field mode (default): analyze/optimize steps + field-only controls', () => {
     const help = createHelpCard({ onReplayTips: () => {} })
     const text = help.el.querySelector('.help-card')!.innerHTML
-    expect(text).toContain('① Build')
-    expect(text).toContain('② Analyze')
-    expect(text).toContain('③ Optimize')
+    expect(text).toContain('Analyze coverage')
+    expect(text).toContain('Optimize')
     expect(text).toContain('Report')
     expect(text).toContain('rotate the robot')
     expect(text).toMatch(/<b>V<\/b>/)
     expect(text).toMatch(/<b>F<\/b>/)
+    // No build-tab instructions in field mode.
+    expect(text).not.toContain('Add body shape')
+  })
+
+  it('robot mode: build instructions only — field-only shortcuts (V, robot rotate) absent', () => {
+    const help = createHelpCard({ onReplayTips: () => {} })
+    help.setMode('robot')
+    const text = help.el.querySelector('.help-card')!.innerHTML
+    expect(text).toContain('Add body shape')
+    expect(text).toContain('Add camera')
+    expect(text).toContain('Pitch/Yaw sliders')
+    expect(text).toMatch(/<b>F<\/b>/)
+    expect(text).not.toMatch(/<b>V<\/b>/)
+    expect(text).not.toContain('rotate the robot')
+    expect(text).not.toContain('Double-click')
+  })
+
+  it('setMode swaps content both ways without duplicating sections', () => {
+    const help = createHelpCard({ onReplayTips: () => {} })
+    help.setMode('robot')
+    help.setMode('field')
+    const card = help.el.querySelector('.help-card')!
+    expect(card.innerHTML).toContain('Analyze coverage')
+    expect(card.innerHTML).not.toContain('Add body shape')
+    expect(card.querySelectorAll('.help-card-title').length).toBe(2)
+    // Replay button survives mode swaps.
+    expect(card.querySelectorAll('.help-replay').length).toBe(1)
   })
 
   it('replay button clears all first-run flags and fires the callback', () => {

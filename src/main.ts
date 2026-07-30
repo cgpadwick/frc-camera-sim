@@ -433,6 +433,7 @@ async function boot() {
       // The chip's copy points AT the Robot tab — showing it while already
       // there is nonsense (QA round 5b nit 2).
       purposeChip.style.display = mode === 'robot' ? 'none' : ''
+      helpCard.setMode(mode)
       panel.setMode(mode)
     },
     onAddCamera: () => editor.armAddCamera(),
