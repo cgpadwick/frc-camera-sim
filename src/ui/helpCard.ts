@@ -62,10 +62,11 @@ const CONTENT: Record<HelpMode, Section[]> = {
     {
       title: 'Controls (Field tab)',
       rows: [
+        '<b>W A S D</b> — drive the robot around the field',
+        '<b>Q E</b> or <b>← →</b> — rotate the robot',
+        '<b>Drag the robot</b> also works',
         '<b>V</b> — cycle field / camera views',
         '<b>F</b> — show / hide camera cones',
-        '<b>← →</b> — rotate the robot',
-        '<b>Drag the robot</b> to move it around the field',
         '<b>Esc</b> — close popups and hints',
         '🌀 Left-drag orbit · right-drag pan · scroll zoom · <b>⟲ Reset</b> re-centers',
       ],
