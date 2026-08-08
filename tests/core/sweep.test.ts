@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { runSweep, cellIndex, coverageScoreVsIdeal } from '../../src/core/sweep'
+import { runSweep, cellIndex, coverageScoreVsIdeal, averageTagCounts } from '../../src/core/sweep'
 import type { SweepResult } from '../../src/core/sweep'
 import { parseWpilibLayout } from '../../src/field/layoutLoader'
 import type { RobotConfig } from '../../src/core/types'
@@ -61,5 +61,29 @@ describe('coverageScoreVsIdeal', () => {
   })
   it('all-zero ideal returns null', () => {
     expect(coverageScoreVsIdeal(fake([1], [0]))).toBeNull()
+  })
+})
+
+describe('averageTagCounts', () => {
+  const fake = (minV: number[], idealV: number[], perH: number[]): SweepResult => ({
+    cols: minV.length, rows: 1, cellSizeM: 1, headingCount: perH.length / minV.length,
+    minCount: Float32Array.from(minV),
+    perHeading: Float32Array.from(perH),
+    idealCount: Float32Array.from(idealV), idealRangeM: 4,
+    tagSeen: {}, cameraDetections: [],
+  })
+  it('typical is the mean over all cell x heading samples; worstCase/ideal are per-cell means', () => {
+    // 2 cells x 2 headings: samples [1,3] and [2,4]; mins [1,2]; ideals [4,6]
+    const a = averageTagCounts(fake([1, 2], [4, 6], [1, 3, 2, 4]))
+    expect(a.typical).toBeCloseTo(2.5)
+    expect(a.worstCase).toBeCloseTo(1.5)
+    expect(a.ideal).toBeCloseTo(5)
+  })
+  it('on a real sweep: 0 <= worstCase <= typical, and ideal is positive', () => {
+    const r = runSweep(layout, robot, [], { cellSizeM: 2.0, headingCount: 4, idealRangeM: 6 })
+    const a = averageTagCounts(r)
+    expect(a.worstCase).toBeGreaterThanOrEqual(0)
+    expect(a.typical).toBeGreaterThanOrEqual(a.worstCase)
+    expect(a.ideal).toBeGreaterThan(0)
   })
 })

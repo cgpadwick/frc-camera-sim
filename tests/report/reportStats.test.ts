@@ -28,6 +28,11 @@ describe('computeReportStats', () => {
   it('dead zones list cell centers', () => {
     expect(stats.deadZones).toEqual([{ xM: 0.5, yM: 0.5 }])
   })
+  it('avgTags: worst-case mean from minCount; typical/ideal from their (all-zero here) layers', () => {
+    expect(stats.avgTags.worstCase).toBeCloseTo((0 + 1 + 2 + 3) / 4)
+    expect(stats.avgTags.typical).toBeCloseTo(0)
+    expect(stats.avgTags.ideal).toBeCloseTo(0)
+  })
   it('camera share percentages', () => {
     expect(stats.cameraShare).toEqual([{ name: 'front', pct: 90 }, { name: 'rear', pct: 10 }])
   })

@@ -1,5 +1,5 @@
 import type { RobotConfig, TagLayout, OccluderBox } from '../core/types'
-import type { SweepResult } from '../core/sweep'
+import type { SweepResult, AverageTagCounts } from '../core/sweep'
 import { cellIndex } from '../core/sweep'
 import { countBand } from '../core/evaluate'
 import { CAMERA_PRESETS } from './presets'
@@ -125,8 +125,8 @@ export interface SweepControlsHandle {
   setLegendVisible(visible: boolean): void
   /** A5: per-cell hover readout in the legend row (null clears). */
   setHoverReadout(text: string | null): void
-  /** Coverage-vs-ideal score line (null clears/hides it). */
-  setScore(score: { worstPct: number; idealRangeM: number } | null): void
+  /** Coverage-vs-ideal score line, with field-wide avg tag counts (null clears/hides it). */
+  setScore(score: { worstPct: number; idealRangeM: number; avg: AverageTagCounts } | null): void
   /** Enables/disables the Report and Set as baseline buttons (both require a completed sweep). */
   setReportEnabled(enabled: boolean): void
   /** Which button carries the accent color: exactly one loud action per state. */
@@ -501,8 +501,8 @@ export function createSweepControls(opts: SweepControlsOptions): SweepControlsHa
         return
       }
       scoreEl.style.display = ''
-      scoreEl.textContent = `Coverage score: ${score.worstPct.toFixed(0)}/100`
-      scoreEl.title = `vs. an ideal omnidirectional setup at your ${score.idealRangeM.toFixed(1)} m tag range`
+      scoreEl.textContent = `Coverage score: ${score.worstPct.toFixed(0)}/100 · avg tags ${score.avg.typical.toFixed(1)} (worst ${score.avg.worstCase.toFixed(1)} · ideal ${score.avg.ideal.toFixed(1)})`
+      scoreEl.title = `Score: vs. an ideal omnidirectional setup at your ${score.idealRangeM.toFixed(1)} m tag range. Avg tags: mean unique tags per grid cell — across all headings / at each cell's blindest heading / omnidirectional upper bound.`
     },
     pulseOptimize() {
       optimizeBtn.classList.remove('pulse')

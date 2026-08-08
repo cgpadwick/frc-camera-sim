@@ -78,3 +78,36 @@ export function coverageScoreVsIdeal(result: SweepResult): { worstPct: number } 
   if (sumIdeal <= 0) return null
   return { worstPct: (100 * sumWorst) / sumIdeal }
 }
+
+export interface AverageTagCounts {
+  /** Mean unique-tag count over every cell x heading sample (typical facing). */
+  typical: number
+  /** Mean of each cell's minimum over headings (worst-case facing). */
+  worstCase: number
+  /** Mean of the per-cell heading-independent ideal upper bound. */
+  ideal: number
+}
+
+/**
+ * Field-wide average visible-tag counts per grid cell — absolute-count
+ * companions to coverageScoreVsIdeal's single ratio. `worstCase` averages
+ * the same layer the heatmap's worst-case mode shows, `ideal` the same
+ * layer the score normalizes against, so worstCase <= typical <= ideal
+ * whenever actual counts stay within the ideal range.
+ */
+export function averageTagCounts(result: SweepResult): AverageTagCounts {
+  const cells = result.minCount.length || 1
+  let sumTypical = 0
+  for (let i = 0; i < result.perHeading.length; i++) sumTypical += result.perHeading[i]
+  let sumWorst = 0
+  let sumIdeal = 0
+  for (let i = 0; i < result.minCount.length; i++) {
+    sumWorst += result.minCount[i]
+    sumIdeal += result.idealCount[i]
+  }
+  return {
+    typical: sumTypical / (result.perHeading.length || 1),
+    worstCase: sumWorst / cells,
+    ideal: sumIdeal / cells,
+  }
+}
