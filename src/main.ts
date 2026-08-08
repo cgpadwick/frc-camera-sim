@@ -30,7 +30,7 @@ import { sweepInWorker } from './workers/sweepClient'
 import { optimizeInWorker } from './workers/optimizeClient'
 import type { OptimizeHandle } from './workers/optimizeClient'
 import { buildCameraGizmo } from './viz/cameraModel'
-import { DEFAULT_SWEEP, coverageScoreVsIdeal } from './core/sweep'
+import { DEFAULT_SWEEP, coverageScoreVsIdeal, averageTagCounts } from './core/sweep'
 import type { SweepResult } from './core/sweep'
 import type { OccluderBox, RobotConfig, SimConfig, TagLayout } from './core/types'
 import { computeReportStats } from './report/report'
@@ -463,7 +463,7 @@ async function boot() {
     if (!shown) return
     heatmap.show(shown, sweepMode)
     const sc = coverageScoreVsIdeal(shown)
-    sweepControls.setScore(sc ? { ...sc, idealRangeM: shown.idealRangeM } : null)
+    sweepControls.setScore(sc ? { ...sc, idealRangeM: shown.idealRangeM, avg: averageTagCounts(shown) } : null)
     sweepControls.setProposalSelected(which)
   }
 
@@ -579,7 +579,7 @@ async function boot() {
           }
           {
             const sc = coverageScoreVsIdeal(result)
-            sweepControls.setScore(sc ? { ...sc, idealRangeM: result.idealRangeM } : null)
+            sweepControls.setScore(sc ? { ...sc, idealRangeM: result.idealRangeM, avg: averageTagCounts(result) } : null)
           }
           lastSweep = {
             result,
@@ -732,7 +732,7 @@ async function boot() {
       }
       heatmap.show(lastSweep.result, sweepMode)
       const sc = coverageScoreVsIdeal(lastSweep.result)
-      sweepControls.setScore(sc ? { ...sc, idealRangeM: lastSweep.result.idealRangeM } : null)
+      sweepControls.setScore(sc ? { ...sc, idealRangeM: lastSweep.result.idealRangeM, avg: averageTagCounts(lastSweep.result) } : null)
       sweepControls.setStale(false)
       clearProposal()
       showToast('Applied optimized camera mounts.', 30000, undefined, {

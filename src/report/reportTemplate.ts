@@ -143,6 +143,7 @@ export function renderReport(
 <p class="subtitle">Generated ${generatedAt}</p>
 ${occluderNote}
 ${stats.scoreVsIdeal ? `<p class="score-line"><b>Coverage score vs ideal: ${stats.scoreVsIdeal.worstPct.toFixed(0)} / 100 (worst-case heading)</b> — field-wide tags seen as a percentage of what an omnidirectional ideal setup would see (ideal = 100).</p>` : ''}
+${renderAvgTagsLine(stats, compare)}
 ${
   opts?.images?.robotViews || opts?.robotModel
     ? `<h2>Robot &amp; camera placement</h2>
@@ -267,6 +268,29 @@ function renderRobotViewer(model: import('./robotWireframe').WireframeModel): st
     '})();',
   ].join('\n')
   return `<div class="viewer-wrap"><canvas id="robot3d"></canvas></div>\n<script>${src}<\/script>`
+}
+
+/**
+ * "Average tags visible" headline: mean unique-tag count per grid cell for
+ * the typical (all headings), worst-case-heading, and ideal layers. When a
+ * baseline is provided each number carries a colored delta (more tags =
+ * better, for the ideal layer too — it only moves if the field or range
+ * changed, and seeing that shift flagged is exactly what you want).
+ */
+function renderAvgTagsLine(stats: ReportStats, compare?: { label: string; stats: ReportStats }): string {
+  const part = (label: string, val: number, base?: number): string => {
+    let s = `${val.toFixed(1)} ${label}`
+    if (base !== undefined) {
+      const d = val - base
+      const color = d === 0 ? '#555' : d > 0 ? IMPROVE_COLOR : REGRESS_COLOR
+      s += ` <span style="color:${color}; font-weight:600;">(${delta(d)})</span>`
+    }
+    return s
+  }
+  const a = stats.avgTags
+  const b = compare?.stats.avgTags
+  const vsNote = compare ? `; parenthesized deltas vs ${escapeHtml(compare.label)}` : ''
+  return `<p class="score-line"><b>Average tags visible: ${part('typical', a.typical, b?.typical)} · ${part('worst-case', a.worstCase, b?.worstCase)} · ${part('ideal', a.ideal, b?.ideal)}</b> — mean unique-tag count per grid cell; typical averages every sampled heading, worst-case takes each cell's blindest heading, ideal is the omnidirectional upper bound at the same range${vsNote}.</p>`
 }
 
 function renderCoverageTable(stats: ReportStats, compare?: { label: string; stats: ReportStats }): string {

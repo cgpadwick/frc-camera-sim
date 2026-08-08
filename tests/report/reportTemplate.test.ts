@@ -8,6 +8,7 @@ function makeStats(overrides: Partial<ReportStats> = {}): ReportStats {
   return {
     bandPctMin: { dead: 25, poor: 25, ok: 25, strong: 25 },
     bandPctAvg: { dead: 10, poor: 20, ok: 30, strong: 40 },
+    avgTags: { typical: 2.4, worstCase: 1.2, ideal: 3.6 },
     deadZones: [{ xM: 0.5, yM: 0.5 }, { xM: 1.5, yM: 0.5 }],
     deadZoneOverflow: 0,
     cameraShare: [{ name: 'front', pct: 60 }, { name: 'rear-left', pct: 40 }],
@@ -135,6 +136,13 @@ describe('renderReport', () => {
     expect(html).toContain(JSON.stringify(DEFAULT_CONFIG, null, 2).replace(/</g, '&lt;'))
   })
 
+  it('includes the average-tags line with typical / worst-case / ideal means', () => {
+    expect(html).toContain('Average tags visible')
+    expect(html).toContain('2.4 typical')
+    expect(html).toContain('1.2 worst-case')
+    expect(html).toContain('3.6 ideal')
+  })
+
   it('has no delta column and no optimism note when compare/flag are omitted', () => {
     expect(html).not.toMatch(/delta/i)
     expect(html).not.toMatch(/optimistic/i)
@@ -164,6 +172,16 @@ describe('renderReport with compare', () => {
     assertBalancedTags(html, 'tr')
     assertBalancedTags(html, 'td')
     assertBalancedTags(html, 'th')
+  })
+
+  it('average-tags line carries signed deltas vs the baseline', () => {
+    const base = makeStats({ avgTags: { typical: 2.0, worstCase: 1.5, ideal: 3.6 } })
+    const h = renderReport(makeStats(), DEFAULT_CONFIG, { label: 'Baseline', stats: base })
+    expect(h).toContain('2.4 typical')
+    expect(h).toContain('(+0.4)') // typical 2.4 vs 2.0 — improvement
+    expect(h).toContain('(-0.3)') // worst-case 1.2 vs 1.5 — regression
+    expect(h).toContain('(+0.0)') // ideal unchanged
+    expect(h).toContain('deltas vs Baseline')
   })
 })
 
